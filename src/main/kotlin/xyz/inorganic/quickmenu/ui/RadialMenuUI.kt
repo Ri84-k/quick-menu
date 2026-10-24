@@ -7,6 +7,8 @@ import xyz.inorganic.quickmenu.QuickMenu
 import xyz.inorganic.quickmenu.data.ActionButtonData
 import xyz.inorganic.quickmenu.other.ActionButtonDataHandler
 import xyz.inorganic.quickmenu.other.ModConfig
+import xyz.inorganic.quickmenu.other.MaLiLibHotkeys
+import xyz.inorganic.quickmenu.data.command_actions.KeybindActionData
 import kotlin.math.*
 
 class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
@@ -49,26 +51,45 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
         return result
     }
 
-    private fun getRadialItems(): List<ActionButtonData> {
+    private data class RadialPage(val group: String, val items: List<ActionButtonData>)
+
+    /**
+     * Partition the existing registered buttons without altering their saved order.
+     * Grouping is calculated at render time, so old quickmenu_data.json remains valid.
+     */
+    private fun getPages(): List<RadialPage> {
         val config = QuickMenu.CONFIG
-        return if (config.radialDisplayMode == ModConfig.RadialDisplayMode.DYNAMIC) {
-            collectRadialItems(ActionButtonDataHandler.actions, true)
-        } else {
-            collectRadialItems(ActionButtonDataHandler.actions, false)
+        val buttons = collectRadialItems(
+            ActionButtonDataHandler.actions,
+            config.radialDisplayMode == ModConfig.RadialDisplayMode.DYNAMIC
+        )
+        if (buttons.isEmpty()) return listOf(RadialPage("Empty", emptyList()))
+
+        if (!config.radialGroupByMod) {
+            return buttons.chunked(maxItemsPerPage()).map { RadialPage("All actions", it) }
+        }
+
+        val groups = linkedMapOf<String, MutableList<ActionButtonData>>()
+        for (button in buttons) {
+            val mods = button.actions.filterIsInstance<KeybindActionData>()
+                .mapNotNull { MaLiLibHotkeys.getModName(it.translationKey) }
+                .distinct()
+            val group = if (mods.size == 1) mods.first() else "General"
+            groups.getOrPut(group) { mutableListOf() }.add(button)
+        }
+        return groups.flatMap { (name, values) ->
+            values.chunked(maxItemsPerPage()).map { RadialPage(name, it) }
         }
     }
 
-    private fun getCurrentPageItems(): List<ActionButtonData> {
-        val items = getRadialItems()
-        val start = currentPage * maxItemsPerPage()
-        val end = min(start + maxItemsPerPage(), items.size)
-        return if (start < items.size) items.subList(start, end) else emptyList()
+    private fun getCurrentPage(): RadialPage {
+        val pages = getPages()
+        return pages[currentPage.coerceIn(0, pages.lastIndex)]
     }
 
-    private fun totalPages(): Int {
-        val items = getRadialItems()
-        return maxOf(1, (items.size + maxItemsPerPage() - 1) / maxItemsPerPage())
-    }
+    private fun getCurrentPageItems(): List<ActionButtonData> = getCurrentPage().items
+
+    private fun totalPages(): Int = getPages().size
 
     private fun getSlotCount(): Int {
         return if (QuickMenu.CONFIG.radialDisplayMode == ModConfig.RadialDisplayMode.STATIC) {
@@ -76,6 +97,46 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
         } else {
             getCurrentPageItems().size
         }
+    }
+
+    private fun toggleId(button: ActionButtonData?): String? {
+        if (button == null || button.actions.size != 1) return null
+        val key = button.actions[0] as? KeybindActionData ?: return null
+        return key.translationKey.takeIf { MaLiLibHotkeys.isMaLiLib(it) }
+    }
+
+    /** Pixel-width-aware labels: no forced eight-character clipping. */
+    private fun wrappedLabel(raw: String, maxPixels: Int, maxLines: Int): List<String> {
+        val words = raw.replace('_', ' ').split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val lines = mutableListOf<String>()
+        var current = ""
+        for (word in words) {
+            val combined = if (current.isEmpty()) word else "$"+"current $"+"word"
+            if (font.width(combined) <= maxPixels) {
+                current = combined
+            } else {
+                if (current.isNotEmpty()) {
+                    lines.add(current)
+                    current = ""
+                }
+                for (letter in word) {
+                    if (font.width(current + letter) > maxPixels && current.isNotEmpty()) {
+                        lines.add(current)
+                        current = ""
+                    }
+                    current += letter
+                }
+            }
+        }
+        if (current.isNotEmpty()) lines.add(current)
+        if (lines.size <= maxLines) return lines
+        val visible = lines.take(maxLines).toMutableList()
+        var last = visible.last()
+        while (last.isNotEmpty() && font.width(last + "…") > maxPixels) {
+            last = last.dropLast(1)
+        }
+        visible[visible.lastIndex] = last + "…"
+        return visible
     }
 
     private fun getRadius(): Float {
@@ -145,8 +206,11 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
 
         graphics.fill(0, 0, width, height, 0xAA000000.toInt())
 
-        val items = getCurrentPageItems()
+        val page = getCurrentPage()
+        val items = page.items
         val slots = getSlotCount()
+        val toggleIds = items.mapNotNull { toggleId(it) }.toSet()
+        val states = MaLiLibHotkeys.getToggleStates(toggleIds)
         if (slots == 0) {
             val emptyMsg = Component.translatable("menu.main.no_actions")
             graphics.centeredText(font, emptyMsg, centerX, centerY, 0x66FFFFFF.toInt())
@@ -166,8 +230,21 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
             val item = if (hasItem) items[slot] else null
             val isHovered = slot == hoveredSlotIndex
 
-            val bgColor = if (isHovered) 0x66FFFFFF.toInt() else if (hasItem) 0x44FFFFFF.toInt() else 0x22FFFFFF.toInt()
-            val borderColor = if (isHovered) 0xAAFFFFFF.toInt() else if (hasItem) 0x22FFFFFF.toInt() else 0x11FFFFFF.toInt()
+            val toggle = states[toggleId(item)]
+            val bgColor = when {
+                isHovered -> 0x66FFFFFF.toInt()
+                toggle == true -> 0x6646AA62
+                toggle == false -> 0x33333333
+                hasItem -> 0x44FFFFFF.toInt()
+                else -> 0x22FFFFFF.toInt()
+            }
+            val borderColor = when {
+                toggle == true -> 0xFF66DD77.toInt()
+                toggle == false -> 0xFF888888.toInt()
+                isHovered -> 0xAAFFFFFF.toInt()
+                hasItem -> 0x22FFFFFF.toInt()
+                else -> 0x11FFFFFF.toInt()
+            }
 
             graphics.fill(itemX - 14, itemY - 14, itemX + 14, itemY + 14, bgColor)
             drawThinBorder(graphics, itemX - 14, itemY - 14, 28, 28, borderColor)
@@ -175,13 +252,18 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
             if (hasItem && !item!!.icon.isEmpty) {
                 graphics.item(item.icon, itemX - 8, itemY - 8)
             }
+            if (toggle != null) {
+                val status = if (toggle) "ON" else "OFF"
+                graphics.text(font, status, itemX + 10, itemY - 21,
+                    if (toggle) 0xFF66DD77.toInt() else 0xFFAAAAAA.toInt(), true)
+            }
 
-            val displayName = if (hasItem) {
-                if (item!!.name.length > 8) item.name.take(7) + "..." else item.name
-            } else ""
-            if (displayName.isNotEmpty()) {
-                val textWidth = font.width(displayName)
-                graphics.text(font, displayName, itemX - textWidth / 2, itemY + 16, 0xFFCCCCCC.toInt(), true)
+            if (hasItem) {
+                val labelLines = wrappedLabel(item!!.name, 90, 3)
+                for ((lineIndex, line) in labelLines.withIndex()) {
+                    graphics.text(font, line, itemX - font.width(line) / 2,
+                        itemY + 16 + lineIndex * 9, 0xFFCCCCCC.toInt(), true)
+                }
             }
         }
 
@@ -190,16 +272,22 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
         drawThinBorder(graphics, centerX - deadZone.toInt(), centerY - deadZone.toInt(), (deadZone * 2).toInt(), (deadZone * 2).toInt(), 0x44FFFFFF.toInt())
 
         val total = totalPages()
-        if (total > 1) {
-            val pageText = "Page ${currentPage + 1} / $total"
-            val pageWidth = font.width(pageText)
-            graphics.text(font, pageText, centerX - pageWidth / 2, centerY - radius.toInt() - 30, 0xFFAAAAAA.toInt(), true)
+        if (total > 1 || QuickMenu.CONFIG.radialGroupByMod) {
+            val pageText = "${page.group}  •  Page ${currentPage + 1} / $total  •  Scroll to switch"
+            graphics.text(font, pageText, centerX - font.width(pageText) / 2,
+                centerY - radius.toInt() - 34, 0xFFDDDDDD.toInt(), true)
         }
 
-        if (hoveredAction != null) {
-            val name = hoveredAction!!.name
-            val nameWidth = font.width(name)
-            graphics.text(font, name, centerX - nameWidth / 2, centerY + radius.toInt() + 20, -1, true)
+        // The full selected action label is always visible, even when long.
+        val selected = hoveredAction
+        if (selected != null) {
+            val lines = wrappedLabel(selected.name, (width - 40).coerceAtLeast(100), 5)
+            val state = states[toggleId(selected)]
+            for ((lineIndex, line) in lines.withIndex()) {
+                graphics.text(font, line, centerX - font.width(line) / 2,
+                    centerY + radius.toInt() + 45 + lineIndex * 10,
+                    if (state == true) 0xFF77DD88.toInt() else -1, true)
+            }
         }
     }
 
