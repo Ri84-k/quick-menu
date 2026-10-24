@@ -129,13 +129,19 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
         }
 
         val footerY = menuY + menuHeight + 5
+        if (!isNewAction) {
+            // Only saved buttons can be deleted. Unsaved buttons are discarded via Cancel.
+            addRenderableWidget(Button.builder(Component.literal("Delete")) {
+                confirmDelete()
+            }.pos(menuX + 10, footerY).size(75, 20).build())
+        }
         addRenderableWidget(Button.builder(Component.translatable("menu.editor.button.finish")) {
             saveAndClose()
-        }.pos(menuX + 40, footerY).size(80, 20).build())
+        }.pos(menuX + if (isNewAction) 40 else 94, footerY).size(if (isNewAction) 80 else 72, 20).build())
 
         addRenderableWidget(Button.builder(Component.translatable("menu.editor.button.cancel")) {
             onClose()
-        }.pos(menuX + 140, footerY).size(80, 20).build())
+        }.pos(menuX + if (isNewAction) 140 else 174, footerY).size(if (isNewAction) 80 else 75, 20).build())
     }
 
     private fun toggleFolderMode(isFolder: Boolean) {
@@ -203,6 +209,38 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
     override fun rebuildWidgets() {
         clearWidgets()
         init()
+    }
+
+    private fun confirmDelete() {
+        val saved = originalAction ?: return
+        val name = saved.name.ifBlank { "Unnamed action" }
+        val message = if (saved.isFolder && saved.children.isNotEmpty()) {
+            "Delete '$name' and all actions inside this folder?"
+        } else {
+            "Permanently delete '$name'?"
+        }
+        val dialog = ConfirmScreen({ confirmed ->
+            if (confirmed) {
+                // Search the full tree: the editor can also be opened from search results.
+                fun deleteFrom(items: MutableList<ActionButtonData>): Boolean {
+                    if (items.remove(saved)) return true
+                    for (item in items) {
+                        if (item.isFolder && deleteFrom(item.children)) return true
+                    }
+                    return false
+                }
+                if (deleteFrom(ActionButtonDataHandler.actions)) {
+                    ActionButtonDataHandler.save()
+                    minecraft?.gui?.setScreen(previousScreen)
+                } else {
+                    // If the action was moved or already removed, do not claim deletion.
+                    minecraft?.gui?.setScreen(this)
+                }
+            } else {
+                minecraft?.gui?.setScreen(this)
+            }
+        }, Component.literal("Confirm Delete"), Component.literal(message))
+        minecraft?.gui?.setScreen(dialog)
     }
 
     private fun saveAndClose() {
