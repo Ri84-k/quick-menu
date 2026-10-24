@@ -134,16 +134,10 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
     }
 
     fun handleKeyRelease() {
-        val client = minecraft
         val action = hoveredAction
-        if (action != null && !action.isFolder) {
-            action.run()
-            if (QuickMenu.CONFIG.radialCloseOnAction) {
-                client.gui.setScreen(null)
-                return
-            }
-        }
-        client.gui.setScreen(null)
+        // Close before executing: a MaLiLib callback may open its own screen.
+        minecraft?.gui?.setScreen(null)
+        if (action != null && !action.isFolder) action.run()
     }
 
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
