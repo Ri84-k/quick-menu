@@ -114,7 +114,7 @@ class ModMenuIntegration : ModMenuApi {
                     .build())
                 .option(Option.createBuilder<ModConfig.RadialDisplayMode>()
                     .name(Component.translatable("text.config.quickmenu.option.radialDisplayMode"))
-                    .description(OptionDescription.of(Component.literal("STATIC: show every action button and keep a fixed number of wheel positions (empty slots are visible). DYNAMIC: show only buttons marked for the wheel and use exactly as many slots as needed.")))
+                    .description(OptionDescription.of(Component.literal("STATIC keeps a fixed slot count; DYNAMIC uses exactly as many slots as the current category needs. Visibility is controlled separately by Show only Radial-selected actions.")))
                     .controller { opt ->
                         EnumControllerBuilder.create(opt)
                             .enumClass(ModConfig.RadialDisplayMode::class.java)
@@ -146,6 +146,42 @@ class ModMenuIntegration : ModMenuApi {
                     .description(OptionDescription.of(Component.literal("When enabled, group MaLiLib actions into separate pages for Litematica, Tweakeroo, MiniHUD and other mods. Mixed or non-MaLiLib buttons are shown under General. Scroll to switch pages.")))
                     .controller { BooleanControllerBuilder.create(it) }
                     .binding(true, { config.radialGroupByMod }, { config.radialGroupByMod = it })
+                    .build())
+                .option(Option.createBuilder<Boolean>()
+                    .name(Component.literal("Show only Radial-selected actions"))
+                    .description(OptionDescription.of(Component.literal("Visibility is separate from Static/Dynamic layout. ON hides buttons not marked Radial in the action editor. OFF includes all buttons. Defaults ON to preserve existing Dynamic setups.")))
+                    .controller { BooleanControllerBuilder.create(it) }
+                    .binding(true, { config.radialOnlySelected }, { config.radialOnlySelected = it })
+                    .build())
+                .option(Option.createBuilder<Boolean>()
+                    .name(Component.literal("Mod-specific submenus"))
+                    .description(OptionDescription.of(Component.literal("Show a top-level category wheel for mods and Favorites. Hold R and click a category to enter it; release R over an action to execute. Right-click to go back.")))
+                    .controller { BooleanControllerBuilder.create(it) }
+                    .binding(true, { config.radialModSubmenus }, { config.radialModSubmenus = it })
+                    .build())
+                .option(Option.createBuilder<Boolean>()
+                    .name(Component.literal("Favorites category"))
+                    .description(OptionDescription.of(Component.literal("Show buttons marked Favorite in a dedicated category on the wheel. Set Favorite in the button editor.")))
+                    .controller { BooleanControllerBuilder.create(it) }
+                    .binding(true, { config.radialFavoritesPage }, { config.radialFavoritesPage = it })
+                    .build())
+                .option(Option.createBuilder<ModConfig.WheelProfile>()
+                    .name(Component.literal("Active wheel profile"))
+                    .description(OptionDescription.of(Component.literal("ALL shows every saved button. Building, Redstone, Farming and General show only buttons assigned to that profile. Press P while viewing the wheel to switch.")))
+                    .controller { opt -> EnumControllerBuilder.create(opt).enumClass(ModConfig.WheelProfile::class.java) }
+                    .binding(ModConfig.WheelProfile.ALL, { config.radialProfile }, { config.radialProfile = it })
+                    .build())
+                .option(Option.createBuilder<Boolean>()
+                    .name(Component.literal("Modern wheel appearance"))
+                    .description(OptionDescription.of(Component.literal("Draw connected radial sectors with a highlighted selection and readable tooltips.")))
+                    .controller { BooleanControllerBuilder.create(it) }
+                    .binding(true, { config.radialModernLook }, { config.radialModernLook = it })
+                    .build())
+                .option(Option.createBuilder<Boolean>()
+                    .name(Component.literal("Wheel action search"))
+                    .description(OptionDescription.of(Component.literal("Press / while viewing the wheel to search all actions from the active profile. Search works even when the original hotkeys are unbound.")))
+                    .controller { BooleanControllerBuilder.create(it) }
+                    .binding(true, { config.radialSearchEnabled }, { config.radialSearchEnabled = it })
                     .build())
                 .option(Option.createBuilder<Boolean>()
                     .name(Component.translatable("text.config.quickmenu.option.radialCloseOnAction"))
