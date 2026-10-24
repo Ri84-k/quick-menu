@@ -4,6 +4,9 @@ import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.client.input.KeyEvent
+import com.mojang.blaze3d.platform.InputConstants
+import net.minecraft.core.registries.BuiltInRegistries
+import java.util.Locale
 import net.minecraft.network.chat.Component
 import net.minecraft.client.renderer.RenderPipelines
 import net.minecraft.resources.Identifier
@@ -32,6 +35,8 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
     private var activeCategory: String? = null
     private var hovered: Entry? = null
     private var hoveredIndex = -1
+    private var draggingAction: ActionButtonData? = null
+    private var dragDropTarget: ActionButtonData? = null
     private var blockedAfterNavigation = false
     private var blockedX = 0.0
     private var blockedY = 0.0
@@ -94,7 +99,9 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
                 result[key] = value
             }
         }
-        return LinkedHashMap(result)
+        return LinkedHashMap(result.mapValues { (_, buttons) ->
+            buttons.sortedWith(compareBy<ActionButtonData> { it.radialOrder })
+        })
     }
 
     private fun pages(): List<Page> {
@@ -195,7 +202,68 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
         return true
     }
 
+
+    // Matches the familiar Alt + drag control used in the G menu.
+    private fun isAltDown(): Boolean =
+        InputConstants.isKeyDown(minecraft!!.window, GLFW.GLFW_KEY_LEFT_ALT) ||
+            InputConstants.isKeyDown(minecraft!!.window, GLFW.GLFW_KEY_RIGHT_ALT)
+
+    private fun canReorderCategory(): Boolean = activeCategory != null &&
+        QuickMenu.CONFIG.radialModSubmenus &&
+        activeCategory != "Favorites" && activeCategory != "All actions"
+
+    override fun mouseDragged(event: MouseButtonEvent, deltaX: Double, deltaY: Double): Boolean {
+        if (draggingAction != null) {
+            updateHover(event.x(), event.y())
+            dragDropTarget = hovered?.button
+            return true
+        }
+        return super.mouseDragged(event, deltaX, deltaY)
+    }
+
+    override fun mouseReleased(event: MouseButtonEvent): Boolean {
+        val source = draggingAction
+        if (source != null) {
+            updateHover(event.x(), event.y())
+            val target = hovered?.button ?: dragDropTarget
+            draggingAction = null
+            dragDropTarget = null
+            if (target != null && source !== target && canReorderCategory()) {
+                val ordered = groups()[activeCategory].orEmpty().toMutableList()
+                val from = ordered.indexOf(source)
+                val to = ordered.indexOf(target)
+                if (from >= 0 && to >= 0) {
+                    val moving = ordered.removeAt(from)
+                    ordered.add(to, moving)
+                    ordered.forEachIndexed { index, button -> button.radialOrder = index }
+                    ActionButtonDataHandler.save()
+                }
+            }
+            return true
+        }
+        return super.mouseReleased(event)
+    }
+
     override fun mouseClicked(event: MouseButtonEvent, doubled: Boolean): Boolean {
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && activeCategory == null) {
+            updateHover(event.x(), event.y())
+            val category = hovered?.category
+            if (category != null) {
+                val editor = CategoryIconEditorUI(category)
+                editor.previousScreen = this
+                minecraft?.gui?.setScreen(editor)
+                return true
+            }
+        }
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && canReorderCategory() && isAltDown()) {
+            updateHover(event.x(), event.y())
+            val button = hovered?.button
+            if (button != null) {
+                draggingAction = button
+                dragDropTarget = button
+                return true
+            }
+        }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && activeCategory != null) {
             activeCategory = null
             currentPage = 0
