@@ -22,6 +22,9 @@ object MaLiLibHotkeys {
 
     private data class Located(val entry: Entry, val keybind: Any, val hotkey: Any)
 
+    private var cacheTimeNs: Long = 0L
+    private var cachedEntries: List<Located> = emptyList()
+
     fun isMaLiLib(id: String): Boolean = id.startsWith(PREFIX)
 
     /** Stable, saved action IDs contain the supplying mod's display name. */
@@ -73,13 +76,17 @@ object MaLiLibHotkeys {
 
     private fun scan(): List<Located> {
         if (!FabricLoader.getInstance().isModLoaded("malilib")) return emptyList()
+        val now = System.nanoTime()
+        if (cachedEntries.isNotEmpty() && now - cacheTimeNs < 1_000_000_000L) {
+            return cachedEntries
+        }
         return try {
             val managerClass = Class.forName("fi.dy.masa.malilib.event.InputEventHandler")
             val manager = managerClass.getMethod("getKeybindManager").invoke(null)
             val categories = manager.javaClass.getMethod("getKeybindCategories")
                 .invoke(manager) as? Iterable<*> ?: return emptyList()
 
-            buildList {
+            val found = buildList {
                 for (rawCategory in categories) {
                     val category = rawCategory ?: continue
                     val cls = category.javaClass
@@ -101,6 +108,9 @@ object MaLiLibHotkeys {
                     }
                 }
             }
+            cachedEntries = found
+            cacheTimeNs = now
+            found
         } catch (_: ReflectiveOperationException) {
             emptyList()
         } catch (_: LinkageError) {
