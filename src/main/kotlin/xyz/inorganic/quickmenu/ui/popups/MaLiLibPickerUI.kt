@@ -25,6 +25,9 @@ class MaLiLibPickerUI : Screen(Component.literal("Select MaLiLib Hotkey")) {
     private var listBottom = 0
     private var listLeft = 0
     private var listRight = 0
+    private var draggingScrollbar = false
+    private val trackW = 9
+    private var scrollbarX = 0
 
     companion object {
         private const val ROW_H = 24
@@ -36,7 +39,8 @@ class MaLiLibPickerUI : Screen(Component.literal("Select MaLiLib Hotkey")) {
         menuX = (width - menuW) / 2
         menuY = (height - menuH) / 2
         listLeft = menuX + 10
-        listRight = menuX + menuW - 10
+        listRight = menuX + menuW - 22
+        scrollbarX = listRight + 4
         listTop = menuY + 43
         listBottom = menuY + menuH - 13
 
@@ -70,7 +74,44 @@ class MaLiLibPickerUI : Screen(Component.literal("Select MaLiLib Hotkey")) {
         return true
     }
 
+    private fun thumbHeight(): Int {
+        val track = listBottom - listTop
+        val total = shown.size * ROW_H
+        return if (total <= track) track else (track.toDouble() * track / total).toInt().coerceIn(22, track)
+    }
+
+    private fun scrollTo(y: Double) {
+        val travel = listBottom - listTop - thumbHeight()
+        if (travel > 0) {
+            val relative = (y - listTop - thumbHeight() / 2.0).coerceIn(0.0, travel.toDouble())
+            scroll = (relative / travel * maxScroll()).toInt().coerceIn(0, maxScroll())
+        }
+    }
+
+    override fun mouseDragged(event: MouseButtonEvent, deltaX: Double, deltaY: Double): Boolean {
+        if (draggingScrollbar) {
+            scrollTo(event.y())
+            return true
+        }
+        return super.mouseDragged(event, deltaX, deltaY)
+    }
+
+    override fun mouseReleased(event: MouseButtonEvent): Boolean {
+        if (draggingScrollbar) {
+            draggingScrollbar = false
+            return true
+        }
+        return super.mouseReleased(event)
+    }
+
     override fun mouseClicked(event: MouseButtonEvent, doubled: Boolean): Boolean {
+        if (event.button() == 0 && maxScroll() > 0 &&
+            event.x() >= scrollbarX && event.x() <= scrollbarX + trackW &&
+            event.y() >= listTop && event.y() < listBottom) {
+            draggingScrollbar = true
+            scrollTo(event.y())
+            return true
+        }
         if (super.mouseClicked(event, doubled)) return true
         if (event.x() >= listLeft && event.x() <= listRight &&
             event.y() >= listTop && event.y() < listBottom) {
@@ -107,6 +148,15 @@ class MaLiLibPickerUI : Screen(Component.literal("Select MaLiLib Hotkey")) {
             y += ROW_H
         }
         graphics.disableScissor()
+
+        graphics.fill(scrollbarX, listTop, scrollbarX + trackW, listBottom, 0x77585868)
+        val thumb = thumbHeight()
+        val yThumb = if (maxScroll() == 0) listTop
+            else listTop + ((listBottom - listTop - thumb).toDouble() * scroll / maxScroll()).toInt()
+        graphics.fill(scrollbarX + 1, yThumb + 1, scrollbarX + trackW - 1, yThumb + thumb - 1,
+            if (draggingScrollbar) 0xFF97BFFF.toInt() else 0xFF8B97B3.toInt())
+        graphics.text(font, "${shown.size} hotkeys", listRight - 75, menuY + 7,
+            0xFFAAAAAA.toInt(), false)
 
         if (shown.isEmpty()) {
             graphics.text(font, Component.literal("No MaLiLib hotkeys found"),
