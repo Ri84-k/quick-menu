@@ -111,7 +111,7 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
         val lines = mutableListOf<String>()
         var current = ""
         for (word in words) {
-            val combined = if (current.isEmpty()) word else "$"+"current $"+"word"
+            val combined = if (current.isEmpty()) word else "${current} ${word}"
             if (font.width(combined) <= maxPixels) {
                 current = combined
             } else {
