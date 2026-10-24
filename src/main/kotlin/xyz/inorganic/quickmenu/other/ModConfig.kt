@@ -46,6 +46,8 @@ class ModConfig {
     var radialFavoritesPage: Boolean = true
     var radialModernLook: Boolean = true
     var radialPngTextures: Boolean = true
+    // Category name (lowercase) -> "item:minecraft:..." or "png:filename.png".
+    var radialCategoryIcons: MutableMap<String, String> = mutableMapOf()
     var radialSearchEnabled: Boolean = true
     var radialProfile: WheelProfile = WheelProfile.ALL
     var macroMaxStepsPerTick: Int = 10000
