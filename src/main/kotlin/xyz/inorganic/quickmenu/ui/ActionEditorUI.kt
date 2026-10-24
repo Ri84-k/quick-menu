@@ -43,7 +43,7 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
 
     init {
         originalAction?.let {
-            actionButtonData = ActionButtonData(it.name, it.actions.toMutableList(), it.icon.copy(), it.keybind.toMutableList(), it.isFolder, it.children.toMutableList(), it.registeredForRadial, it.favorite, it.radialProfile, it.customIconName)
+            actionButtonData = ActionButtonData(it.name, it.actions.toMutableList(), it.icon.copy(), it.keybind.toMutableList(), it.isFolder, it.children.toMutableList(), it.registeredForRadial, it.favorite, it.radialProfile, it.customIconName, it.radialOrder)
             keybind.addAll(it.keybind)
             if (keybind.size >= 4) isBoundKeybind = true
             isNewAction = false
@@ -275,6 +275,7 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
                 it.favorite = actionButtonData.favorite
                 it.radialProfile = actionButtonData.radialProfile
                 it.customIconName = actionButtonData.customIconName
+                it.radialOrder = actionButtonData.radialOrder
 
                 if (it.isFolder && !actionButtonData.isFolder && actionButtonData.children.isNotEmpty()) {
                     val index = parentList.indexOf(it)
