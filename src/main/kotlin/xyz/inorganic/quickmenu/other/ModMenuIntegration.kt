@@ -149,9 +149,9 @@ class ModMenuIntegration : ModMenuApi {
                     .build())
                 .option(Option.createBuilder<Boolean>()
                     .name(Component.literal("Show only Radial-selected actions"))
-                    .description(OptionDescription.of(Component.literal("Visibility is separate from Static/Dynamic layout. ON hides buttons not marked Radial in the action editor. OFF includes all buttons. Defaults ON to preserve existing Dynamic setups.")))
+                    .description(OptionDescription.of(Component.literal("Visibility is separate from Static/Dynamic layout. ON hides buttons not marked Radial in the action editor. OFF includes all buttons. Defaults OFF so existing Static layouts continue to show all actions. Enable to recreate the old Dynamic filtering.")))
                     .controller { BooleanControllerBuilder.create(it) }
-                    .binding(true, { config.radialOnlySelected }, { config.radialOnlySelected = it })
+                    .binding(false, { config.radialOnlySelected }, { config.radialOnlySelected = it })
                     .build())
                 .option(Option.createBuilder<Boolean>()
                     .name(Component.literal("Mod-specific submenus"))
