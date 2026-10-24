@@ -18,6 +18,7 @@ import xyz.inorganic.quickmenu.other.ActionButtonDataHandler
 import xyz.inorganic.quickmenu.ui.components.ConfirmScreen
 import xyz.inorganic.quickmenu.ui.components.QuickMenuButton
 import xyz.inorganic.quickmenu.ui.popups.ItemPickerUI
+import xyz.inorganic.quickmenu.ui.popups.CustomIconPickerUI
 
 class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Screen(Component.translatable("menu.editor.title")) {
     private var actionButtonData = ActionButtonData()
@@ -38,11 +39,11 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
     private var menuX = 0
     private var menuY = 0
     private var menuWidth = 260
-    private var menuHeight = 180
+    private var menuHeight = 210
 
     init {
         originalAction?.let {
-            actionButtonData = ActionButtonData(it.name, it.actions.toMutableList(), it.icon.copy(), it.keybind.toMutableList(), it.isFolder, it.children.toMutableList(), it.registeredForRadial, it.favorite, it.radialProfile)
+            actionButtonData = ActionButtonData(it.name, it.actions.toMutableList(), it.icon.copy(), it.keybind.toMutableList(), it.isFolder, it.children.toMutableList(), it.registeredForRadial, it.favorite, it.radialProfile, it.customIconName)
             keybind.addAll(it.keybind)
             if (keybind.size >= 4) isBoundKeybind = true
             isNewAction = false
@@ -63,6 +64,7 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
             itemPicker.previousScreen = this
             itemPicker.onSelectedItem = { item ->
                 actionButtonData.icon = item
+                actionButtonData.customIconName = ""
                 rebuildWidgets()
             }
             minecraft?.gui?.setScreen(itemPicker)
@@ -118,6 +120,18 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
             actionButtonData.radialProfile = profiles[(index + 1).coerceAtLeast(0) % profiles.size]
             rebuildWidgets()
         }.pos(menuX + 100, menuY + 145).size(140, 20).build())
+
+        addRenderableWidget(Button.builder(Component.literal(
+            if (actionButtonData.customIconName.isBlank()) "Choose PNG..." else actionButtonData.customIconName.take(19))) {
+            syncInputToData()
+            val picker = CustomIconPickerUI()
+            picker.previousScreen = this
+            picker.onSelected = { filename ->
+                actionButtonData.customIconName = filename
+                rebuildWidgets()
+            }
+            minecraft?.gui?.setScreen(picker)
+        }.pos(menuX + 100, menuY + 170).size(140, 20).build())
 
         if (!actionButtonData.isFolder) {
             addRenderableWidget(Button.builder(Component.literal("Edit Actions >")) {
@@ -260,6 +274,7 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
                 it.registeredForRadial = actionButtonData.registeredForRadial
                 it.favorite = actionButtonData.favorite
                 it.radialProfile = actionButtonData.radialProfile
+                it.customIconName = actionButtonData.customIconName
 
                 if (it.isFolder && !actionButtonData.isFolder && actionButtonData.children.isNotEmpty()) {
                     val index = parentList.indexOf(it)
@@ -328,6 +343,7 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
         graphics.text(font, Component.translatable("menu.editor.property.name"), menuX + 10, menuY + 20, 0xFFAAAAAA.toInt(), true)
         graphics.text(font, Component.translatable("menu.editor.property.icon"), menuX + 10, menuY + 45, 0xFFAAAAAA.toInt(), true)
         graphics.text(font, "CustomModelData", menuX + 10, menuY + 75, 0xFFAAAAAA.toInt(), true)
+        graphics.text(font, "PNG Icon", menuX + 10, menuY + 175, 0xFFAAAAAA.toInt(), true)
         graphics.text(font, Component.translatable("menu.editor.property.keybind"), menuX + 10, menuY + 100, 0xFFAAAAAA.toInt(), true)
     }
 
