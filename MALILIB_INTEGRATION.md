@@ -38,3 +38,22 @@ The upstream project uses Stonecutter with Minecraft **26.2** as the active vers
 The GitHub Actions workflow in this branch was adjusted to use Java 25. The integration has been committed but **has not yet passed a complete Gradle build or in-game verification**.
 
 Do not merge into `main` or distribute this experimental build before testing. Upstream code is GPL-3.0; preserve its LICENSE and attribution.
+
+
+## Rika custom radial wheel improvements (2.3.0-rika.2)
+
+- **Full labels:** Each wheel item uses wrapped text instead of an eight-character cutoff. The complete selected button name appears below the wheel while hovered.
+- **Grouped pages:** Existing saved buttons are automatically divided into pages by MaLiLib mod (Litematica, Tweakeroo, MiniHUD, etc.). Mixed/non-MaLiLib actions appear on a **General** page. Scroll the mouse wheel while holding `R` to switch pages. To recover the former flat order, disable **Group radial pages by mod** in Quick Menu settings.
+- **Live toggle state:** Actions that contain exactly one MaLiLib boolean hotkey show **ON** or **OFF**, with a corresponding border color. Plain commands, held-key operations and hotkeys without a readable boolean value show **no state**, rather than a guessed value.
+- **Automatic icons:** Newly selected MaLiLib actions with an empty button icon receive a suggested Minecraft item (pickaxe/tools, spyglass/camera, etc.). You can still customize the icon in the action editor using the existing item picker; icons you already chose are never replaced.
+- **Better performance:** MaLiLib's hotkey registry is cached for up to one second, while boolean states are read live.
+
+### Upgrading safely
+
+1. Back up `config/quickmenu_data.json` and `config/quickmenu.json`.
+2. Remove the previous custom Quick Menu JAR; the mod ID is still `quickmenu`, so do not install both versions.
+3. Install the new `quickmenu-2.3.0-rika.2+26.2.jar`.
+4. Open your existing wheel with `R`; no action migration should be necessary.
+5. Verify a Litematica or Tweakeroo boolean toggle and a normal one-shot hotkey separately. Boolean indicators are only displayed for hotkeys exposing a MaLiLib boolean config.
+
+The runtime changes require in-game validation; passing Gradle compilation is not a replacement for testing.
