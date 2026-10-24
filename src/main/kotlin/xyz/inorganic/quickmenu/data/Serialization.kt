@@ -22,7 +22,8 @@ data class ActionButtonDataJSON(
     val children: List<ActionButtonDataJSON> = emptyList(),
     val registeredForRadial: Boolean = false,
     val favorite: Boolean = false,
-    val radialProfile: String = "GENERAL"
+    val radialProfile: String = "GENERAL",
+    val customIconName: String = ""
 ) {
     fun toActionButtonData(): ActionButtonData {
         val data = ActionButtonData(
@@ -31,7 +32,8 @@ data class ActionButtonDataJSON(
             isFolder = isFolder,
             registeredForRadial = registeredForRadial,
             favorite = favorite,
-            radialProfile = radialProfile
+            radialProfile = radialProfile,
+            customIconName = customIconName
         )
         
         data.actions = actions.mapNotNull { actionList ->
@@ -86,6 +88,7 @@ fun ActionButtonData.toJSON(): ActionButtonDataJSON {
         children = children.map { it.toJSON() },
         registeredForRadial = registeredForRadial,
         favorite = favorite,
-        radialProfile = radialProfile
+        radialProfile = radialProfile,
+        customIconName = customIconName
     )
 }
