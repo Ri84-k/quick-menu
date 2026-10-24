@@ -45,6 +45,13 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
 
     private fun maxSlots(): Int = QuickMenu.CONFIG.radialMaxItems.coerceIn(1, 16)
 
+    // Fallback labels are calculated, not saved, so existing action names and
+    // Quick Menu JSON remain unchanged.
+    private fun displayName(button: ActionButtonData): String =
+        button.name.takeIf { it.isNotBlank() }
+            ?: button.actions.firstOrNull()?.getDisplayString()?.takeIf { it.isNotBlank() }
+            ?: "Unnamed action"
+
     private fun collect(buttons: List<ActionButtonData>, output: MutableList<ActionButtonData>) {
         for (button in buttons) {
             if (button.isFolder) collect(button.children, output)
@@ -95,27 +102,27 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
             if (category == null) {
                 return grouped.keys.map { Entry(it, category = it) }
                     .chunked(maxSlots()).map { Page("Categories • ${config.radialProfile.name}", it) }
-                    .ifEmpty { listOf(Page("Categories", emptyList())) }
+                    .ifEmpty { listOf(Page("Categories • ${config.radialProfile.name}", emptyList())) }
             }
             val buttons = grouped[category] ?: emptyList()
-            return buttons.map { Entry(it.name, button = it) }
+            return buttons.map { Entry(displayName(it), button = it) }
                 .chunked(maxSlots()).map { Page("$category • ${config.radialProfile.name}", it) }
                 .ifEmpty { listOf(Page("$category", emptyList())) }
         }
         val buttons = actions()
         if (!config.radialGroupByMod) {
-            return buttons.map { Entry(it.name, button = it) }
+            return buttons.map { Entry(displayName(it), button = it) }
                 .chunked(maxSlots()).map { Page("All actions • ${config.radialProfile.name}", it) }
                 .ifEmpty { listOf(Page("All actions", emptyList())) }
         }
         val result = mutableListOf<Page>()
         val favorite = if (config.radialFavoritesPage) buttons.filter { it.favorite } else emptyList()
         if (favorite.isNotEmpty()) {
-            result.addAll(favorite.map { Entry(it.name, button = it) }
+            result.addAll(favorite.map { Entry(displayName(it), button = it) }
                 .chunked(maxSlots()).map { Page("Favorites", it) })
         }
         for ((group, items) in buttons.groupBy { modName(it) }) {
-            result.addAll(items.map { Entry(it.name, button = it) }
+            result.addAll(items.map { Entry(displayName(it), button = it) }
                 .chunked(maxSlots()).map { Page(group, it) })
         }
         return result.ifEmpty { listOf(Page("Empty", emptyList())) }
@@ -127,9 +134,15 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
         return p[currentPage]
     }
 
-    private fun count(page: Page): Int =
-        if (QuickMenu.CONFIG.radialDisplayMode == ModConfig.RadialDisplayMode.STATIC) maxSlots()
-        else maxOf(1, page.entries.size)
+    private fun count(page: Page): Int {
+        // Root categories are navigation entries, not fixed action positions.
+        // Distribute them around the full circle even in Static mode.
+        if (QuickMenu.CONFIG.radialModSubmenus && activeCategory == null) {
+            return maxOf(1, page.entries.size)
+        }
+        return if (QuickMenu.CONFIG.radialDisplayMode == ModConfig.RadialDisplayMode.STATIC)
+            maxSlots() else maxOf(1, page.entries.size)
+    }
 
     private fun mouseReset(x: Double, y: Double) {
         blockedAfterNavigation = true
@@ -261,8 +274,9 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
     }
 
     /** Draw small tiles along a circle rather than large overlapping square buttons. */
-    private fun sector(graphics: GuiGraphicsExtractor, angle: Double, slice: Double, radius: Int, selected: Boolean, enabled: Boolean?) {
+    private fun sector(graphics: GuiGraphicsExtractor, angle: Double, slice: Double, radius: Int, selected: Boolean, enabled: Boolean?, occupied: Boolean) {
         val color = when {
+            !occupied -> 0x22383A48
             selected -> 0xAA7AB7FF.toInt()
             enabled == true -> 0xAA469A5A.toInt()
             enabled == false -> 0x995C5C5C.toInt()
@@ -291,7 +305,23 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
         val states = MaLiLibHotkeys.getToggleStates(p.entries.mapNotNull { toggleKey(it.button) }.toSet())
         val modern = QuickMenu.CONFIG.radialModernLook
         if (p.entries.isEmpty()) {
-            graphics.centeredText(font, Component.literal("No actions • change profile or radial filters"), centerX, centerY - 5, -1)
+            val config = QuickMenu.CONFIG
+            val heading = when {
+                config.radialProfile != ModConfig.WheelProfile.ALL ->
+                    "No actions assigned to ${config.radialProfile.name}"
+                config.radialOnlySelected -> "No radial-selected actions"
+                else -> "No actions in Quick Menu"
+            }
+            graphics.centeredText(font, Component.literal("Wheel profile: ${config.radialProfile.name}"),
+                centerX, centerY - 56, 0xFFEAEAEA.toInt())
+            graphics.centeredText(font, Component.literal(heading), centerX, centerY - 15, -1)
+            graphics.centeredText(font,
+                Component.literal("Press P to switch profile; choose ALL to see everything"),
+                centerX, centerY + 5, 0xFFAAAAAA.toInt())
+            graphics.centeredText(font,
+                Component.literal("Assign profiles in G > Edit > Action"),
+                centerX, centerY + 20, 0xFFAAAAAA.toInt())
+            return
         }
 
         for (i in 0 until slots) {
@@ -301,7 +331,7 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
             val yy = (centerY + radius * sin(angle)).toInt()
             val selected = i == hoveredIndex && entry != null
             val enabled = states[toggleKey(entry?.button)]
-            if (modern && entry != null) sector(graphics, angle, slice, radius, selected, enabled)
+            if (modern) sector(graphics, angle, slice, radius, selected, enabled, entry != null)
             else if (!modern) {
                 val color = if (selected) 0x885FA9FF.toInt() else 0x554A4A4A
                 graphics.fill(xx - 22, yy - 22, xx + 22, yy + 22, color)
