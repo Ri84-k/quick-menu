@@ -2,21 +2,36 @@ package xyz.inorganic.quickmenu.ui
 
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.screens.Screen
+import net.minecraft.client.input.MouseButtonEvent
+import net.minecraft.client.input.KeyEvent
 import net.minecraft.network.chat.Component
+import org.lwjgl.glfw.GLFW
 import xyz.inorganic.quickmenu.QuickMenu
 import xyz.inorganic.quickmenu.data.ActionButtonData
-import xyz.inorganic.quickmenu.other.ActionButtonDataHandler
-import xyz.inorganic.quickmenu.other.ModConfig
-import xyz.inorganic.quickmenu.other.MaLiLibHotkeys
 import xyz.inorganic.quickmenu.data.command_actions.KeybindActionData
+import xyz.inorganic.quickmenu.other.ActionButtonDataHandler
+import xyz.inorganic.quickmenu.other.MaLiLibHotkeys
+import xyz.inorganic.quickmenu.other.ModConfig
 import kotlin.math.*
 
-class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
+/**
+ * Rika.4 wheel: data always references original saved buttons, never clones them.
+ * Root categories are opened with a left click while holding R; right click backs out.
+ * The original release-R-to-execute behavior remains for action pages.
+ */
+class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
+    private data class Entry(val name: String, val button: ActionButtonData? = null, val category: String? = null)
+    private data class Page(val title: String, val entries: List<Entry>)
+
     private var centerX = 0
     private var centerY = 0
     private var currentPage = 0
-    private var hoveredAction: ActionButtonData? = null
-    private var hoveredSlotIndex = -1
+    private var activeCategory: String? = null
+    private var hovered: Entry? = null
+    private var hoveredIndex = -1
+    private var blockedAfterNavigation = false
+    private var blockedX = 0.0
+    private var blockedY = 0.0
 
     companion object {
         private var lastPage = 0
@@ -25,285 +40,314 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
     override fun init() {
         centerX = width / 2
         centerY = height / 2
-
-        if (lastPage < totalPages()) {
-            currentPage = lastPage
-        } else {
-            currentPage = 0
-        }
+        currentPage = lastPage.coerceIn(0, pages().lastIndex)
     }
 
-    private fun maxItemsPerPage(): Int {
-        return QuickMenu.CONFIG.radialMaxItems.coerceIn(1, 16)
-    }
+    private fun maxSlots(): Int = QuickMenu.CONFIG.radialMaxItems.coerceIn(1, 16)
 
-    private fun collectRadialItems(items: List<ActionButtonData>, onlyRegistered: Boolean): List<ActionButtonData> {
-        val result = mutableListOf<ActionButtonData>()
-        for (item in items) {
-            if (!item.isFolder) {
-                if (!onlyRegistered || item.registeredForRadial) {
-                    result.add(item)
-                }
-            } else {
-                result.addAll(collectRadialItems(item.children, onlyRegistered))
-            }
-        }
-        return result
-    }
-
-    private data class RadialPage(val group: String, val items: List<ActionButtonData>)
-
-    /**
-     * Partition the existing registered buttons without altering their saved order.
-     * Grouping is calculated at render time, so old quickmenu_data.json remains valid.
-     */
-    private fun getPages(): List<RadialPage> {
-        val config = QuickMenu.CONFIG
-        val buttons = collectRadialItems(
-            ActionButtonDataHandler.actions,
-            config.radialDisplayMode == ModConfig.RadialDisplayMode.DYNAMIC
-        )
-        if (buttons.isEmpty()) return listOf(RadialPage("Empty", emptyList()))
-
-        if (!config.radialGroupByMod) {
-            return buttons.chunked(maxItemsPerPage()).map { RadialPage("All actions", it) }
-        }
-
-        val groups = linkedMapOf<String, MutableList<ActionButtonData>>()
+    private fun collect(buttons: List<ActionButtonData>, output: MutableList<ActionButtonData>) {
         for (button in buttons) {
-            val mods = button.actions.filterIsInstance<KeybindActionData>()
-                .mapNotNull { MaLiLibHotkeys.getModName(it.translationKey) }
-                .distinct()
-            val group = if (mods.size == 1) mods.first() else "General"
-            groups.getOrPut(group) { mutableListOf() }.add(button)
-        }
-        return groups.flatMap { (name, values) ->
-            values.chunked(maxItemsPerPage()).map { RadialPage(name, it) }
+            if (button.isFolder) collect(button.children, output)
+            else output.add(button)
         }
     }
 
-    private fun getCurrentPage(): RadialPage {
-        val pages = getPages()
-        return pages[currentPage.coerceIn(0, pages.lastIndex)]
+    private fun actions(): List<ActionButtonData> {
+        val config = QuickMenu.CONFIG
+        val all = mutableListOf<ActionButtonData>()
+        collect(ActionButtonDataHandler.actions, all)
+        return all.filter { button ->
+            (!config.radialOnlySelected || button.registeredForRadial) &&
+                (config.radialProfile == ModConfig.WheelProfile.ALL ||
+                    button.radialProfile.equals(config.radialProfile.name, ignoreCase = true))
+        }
     }
 
-    private fun getCurrentPageItems(): List<ActionButtonData> = getCurrentPage().items
+    private fun modName(button: ActionButtonData): String {
+        val mods = button.actions.filterIsInstance<KeybindActionData>()
+            .mapNotNull { MaLiLibHotkeys.getModName(it.translationKey) }.distinct()
+        return if (mods.size == 1) mods.first() else "General"
+    }
 
-    private fun totalPages(): Int = getPages().size
-
-    private fun getSlotCount(): Int {
-        return if (QuickMenu.CONFIG.radialDisplayMode == ModConfig.RadialDisplayMode.STATIC) {
-            maxItemsPerPage()
+    private fun groups(): LinkedHashMap<String, List<ActionButtonData>> {
+        val config = QuickMenu.CONFIG
+        val all = actions()
+        val result = linkedMapOf<String, List<ActionButtonData>>()
+        if (config.radialFavoritesPage) {
+            val favorite = all.filter { it.favorite }
+            if (favorite.isNotEmpty()) result["Favorites"] = favorite
+        }
+        if (!config.radialGroupByMod) {
+            result["All actions"] = all
         } else {
-            getCurrentPageItems().size
-        }
-    }
-
-    private fun toggleId(button: ActionButtonData?): String? {
-        if (button == null || button.actions.size != 1) return null
-        val key = button.actions[0] as? KeybindActionData ?: return null
-        return key.translationKey.takeIf { MaLiLibHotkeys.isMaLiLib(it) }
-    }
-
-    /** Pixel-width-aware labels: no forced eight-character clipping. */
-    private fun wrappedLabel(raw: String, maxPixels: Int, maxLines: Int): List<String> {
-        val words = raw.replace('_', ' ').split(Regex("\\s+")).filter { it.isNotEmpty() }
-        val lines = mutableListOf<String>()
-        var current = ""
-        for (word in words) {
-            val combined = if (current.isEmpty()) word else "${current} ${word}"
-            if (font.width(combined) <= maxPixels) {
-                current = combined
-            } else {
-                if (current.isNotEmpty()) {
-                    lines.add(current)
-                    current = ""
-                }
-                for (letter in word) {
-                    if (font.width(current + letter) > maxPixels && current.isNotEmpty()) {
-                        lines.add(current)
-                        current = ""
-                    }
-                    current += letter
-                }
+            for ((key, value) in all.groupBy { modName(it) }) {
+                result[key] = value
             }
         }
-        if (current.isNotEmpty()) lines.add(current)
-        if (lines.size <= maxLines) return lines
-        val visible = lines.take(maxLines).toMutableList()
-        var last = visible.last()
-        while (last.isNotEmpty() && font.width(last + "…") > maxPixels) {
-            last = last.dropLast(1)
+        return LinkedHashMap(result)
+    }
+
+    private fun pages(): List<Page> {
+        val config = QuickMenu.CONFIG
+        if (config.radialModSubmenus) {
+            val grouped = groups()
+            val category = activeCategory
+            if (category == null) {
+                return grouped.keys.map { Entry(it, category = it) }
+                    .chunked(maxSlots()).map { Page("Categories • ${config.radialProfile.name}", it) }
+                    .ifEmpty { listOf(Page("Categories", emptyList())) }
+            }
+            val buttons = grouped[category] ?: emptyList()
+            return buttons.map { Entry(it.name, button = it) }
+                .chunked(maxSlots()).map { Page("$category • ${config.radialProfile.name}", it) }
+                .ifEmpty { listOf(Page("$category", emptyList())) }
         }
-        visible[visible.lastIndex] = last + "…"
-        return visible
+        val buttons = actions()
+        if (!config.radialGroupByMod) {
+            return buttons.map { Entry(it.name, button = it) }
+                .chunked(maxSlots()).map { Page("All actions • ${config.radialProfile.name}", it) }
+                .ifEmpty { listOf(Page("All actions", emptyList())) }
+        }
+        val result = mutableListOf<Page>()
+        val favorite = if (config.radialFavoritesPage) buttons.filter { it.favorite } else emptyList()
+        if (favorite.isNotEmpty()) {
+            result.addAll(favorite.map { Entry(it.name, button = it) }
+                .chunked(maxSlots()).map { Page("Favorites", it) })
+        }
+        for ((group, items) in buttons.groupBy { modName(it) }) {
+            result.addAll(items.map { Entry(it.name, button = it) }
+                .chunked(maxSlots()).map { Page(group, it) })
+        }
+        return result.ifEmpty { listOf(Page("Empty", emptyList())) }
     }
 
-    private fun getRadius(): Float {
-        return QuickMenu.CONFIG.radialRadius.toFloat()
+    private fun page(): Page {
+        val p = pages()
+        currentPage = currentPage.coerceIn(0, p.lastIndex)
+        return p[currentPage]
     }
 
-    private fun getDeadZoneRadius(): Float {
-        return QuickMenu.CONFIG.radialDeadZoneRadius.toFloat()
+    private fun count(page: Page): Int =
+        if (QuickMenu.CONFIG.radialDisplayMode == ModConfig.RadialDisplayMode.STATIC) maxSlots()
+        else maxOf(1, page.entries.size)
+
+    private fun mouseReset(x: Double, y: Double) {
+        blockedAfterNavigation = true
+        blockedX = x
+        blockedY = y
+        hovered = null
+        hoveredIndex = -1
     }
 
-    override fun mouseScrolled(mouseX: Double, mouseY: Double, horizontalAmount: Double, verticalAmount: Double): Boolean {
-        val total = totalPages()
-        if (total <= 1) return false
-        currentPage = ((currentPage - verticalAmount.toInt()) % total + total) % total
-        lastPage = currentPage
-        return true
+    private fun updateHover(mouseX: Double, mouseY: Double) {
+        if (blockedAfterNavigation) {
+            if (hypot(mouseX - blockedX, mouseY - blockedY) < 14) {
+                hovered = null
+                hoveredIndex = -1
+                return
+            }
+            blockedAfterNavigation = false
+        }
+        val radius = QuickMenu.CONFIG.radialDeadZoneRadius
+        val dx = mouseX - centerX
+        val dy = mouseY - centerY
+        if (hypot(dx, dy) < radius) {
+            hovered = null
+            hoveredIndex = -1
+            return
+        }
+        val page = page()
+        val slots = count(page)
+        val sector = 2 * PI / slots
+        val angle = atan2(dy, dx)
+        val index = ((angle + PI / 2 + sector / 2 + 2 * PI) % (2 * PI) / sector).toInt()
+        hoveredIndex = index
+        hovered = page.entries.getOrNull(index)
     }
 
     override fun mouseMoved(mouseX: Double, mouseY: Double) {
-        updateHovered(mouseX, mouseY)
+        updateHover(mouseX, mouseY)
     }
 
-    private fun updateHovered(mouseX: Double, mouseY: Double) {
-        val dx = mouseX - centerX
-        val dy = mouseY - centerY
-        val dist = sqrt(dx * dx + dy * dy).toFloat()
-
-        if (dist < getDeadZoneRadius()) {
-            hoveredAction = null
-            hoveredSlotIndex = -1
-            return
-        }
-
-        val items = getCurrentPageItems()
-        val slots = getSlotCount()
-        if (slots == 0) {
-            hoveredAction = null
-            hoveredSlotIndex = -1
-            return
-        }
-
-        val sliceAngle = 2 * PI / slots
-        val mouseAngle = atan2(dy, dx)
-        // Match the icon centers exactly. The first action sits at 12 o'clock.
-        val startAngle = -PI / 2
-        val shifted = (mouseAngle - startAngle + sliceAngle / 2 + 2 * PI) % (2 * PI)
-        val slotIndex = (shifted / sliceAngle).toInt()
-
-        hoveredSlotIndex = slotIndex
-        hoveredAction = if (slotIndex in items.indices) items[slotIndex] else null
+    override fun mouseScrolled(mouseX: Double, mouseY: Double, horizontalAmount: Double, verticalAmount: Double): Boolean {
+        val total = pages().size
+        if (total < 2) return true
+        val step = if (verticalAmount > 0) -1 else if (verticalAmount < 0) 1 else 0
+        currentPage = ((currentPage + step) % total + total) % total
+        lastPage = currentPage
+        mouseReset(mouseX, mouseY)
+        return true
     }
 
-    private fun isInDeadZone(mouseX: Double, mouseY: Double): Boolean {
-        val dx = mouseX - centerX
-        val dy = mouseY - centerY
-        return sqrt(dx * dx + dy * dy) <= getDeadZoneRadius()
+    override fun mouseClicked(event: MouseButtonEvent, doubled: Boolean): Boolean {
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && activeCategory != null) {
+            activeCategory = null
+            currentPage = 0
+            lastPage = 0
+            mouseReset(event.x(), event.y())
+            return true
+        }
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            updateHover(event.x(), event.y())
+            val selected = hovered
+            if (selected?.category != null) {
+                activeCategory = selected.category
+                currentPage = 0
+                lastPage = 0
+                mouseReset(event.x(), event.y())
+                return true
+            }
+            if (selected?.button != null) {
+                minecraft?.gui?.setScreen(null)
+                selected.button.run()
+                return true
+            }
+            // Clicking the dead-zone returns to categories.
+            if (activeCategory != null && hypot(event.x() - centerX, event.y() - centerY) < QuickMenu.CONFIG.radialDeadZoneRadius) {
+                activeCategory = null
+                currentPage = 0
+                mouseReset(event.x(), event.y())
+                return true
+            }
+        }
+        return super.mouseClicked(event, doubled)
+    }
+
+    override fun keyPressed(event: KeyEvent): Boolean {
+        if (event.key() == GLFW.GLFW_KEY_P) {
+            val values = ModConfig.WheelProfile.entries
+            val config = QuickMenu.CONFIG
+            config.radialProfile = values[(config.radialProfile.ordinal + 1) % values.size]
+            config.save()
+            activeCategory = null
+            currentPage = 0
+            mouseReset(centerX.toDouble(), centerY.toDouble())
+            return true
+        }
+        if (QuickMenu.CONFIG.radialSearchEnabled &&
+            (event.key() == GLFW.GLFW_KEY_SLASH || event.key() == GLFW.GLFW_KEY_F)) {
+            minecraft?.gui?.setScreen(RadialSearchUI(actions()))
+            return true
+        }
+        if (event.key() == GLFW.GLFW_KEY_BACKSPACE && activeCategory != null) {
+            activeCategory = null
+            currentPage = 0
+            mouseReset(centerX.toDouble(), centerY.toDouble())
+            return true
+        }
+        return super.keyPressed(event)
     }
 
     fun handleKeyRelease() {
-        val action = hoveredAction
-        // Close before executing: a MaLiLib callback may open its own screen.
+        val action = hovered?.button
+        // Do not execute a category header. Only the explicit button action runs.
         minecraft?.gui?.setScreen(null)
-        if (action != null && !action.isFolder) action.run()
+        action?.run()
+    }
+
+    private fun iconFor(category: String) = when (category.lowercase()) {
+        "favorites" -> net.minecraft.world.item.Items.NETHER_STAR.defaultInstance
+        "litematica" -> net.minecraft.world.item.Items.GOLDEN_AXE.defaultInstance
+        "tweakeroo" -> net.minecraft.world.item.Items.REPEATER.defaultInstance
+        "tweakermore" -> net.minecraft.world.item.Items.COBWEB.defaultInstance
+        "minihud" -> net.minecraft.world.item.Items.COMPASS.defaultInstance
+        else -> net.minecraft.world.item.Items.BOOK.defaultInstance
+    }
+
+    private fun toggleKey(button: ActionButtonData?): String? {
+        if (button == null || button.actions.size != 1) return null
+        val key = button.actions.first() as? KeybindActionData ?: return null
+        return key.translationKey.takeIf { MaLiLibHotkeys.isMaLiLib(it) }
+    }
+
+    /** Draw small tiles along a circle rather than large overlapping square buttons. */
+    private fun sector(graphics: GuiGraphicsExtractor, angle: Double, slice: Double, radius: Int, selected: Boolean, enabled: Boolean?) {
+        val color = when {
+            selected -> 0xAA7AB7FF.toInt()
+            enabled == true -> 0xAA469A5A.toInt()
+            enabled == false -> 0x995C5C5C.toInt()
+            else -> 0x88505064.toInt()
+        }
+        val inner = maxOf(24, (radius * 0.51).toInt())
+        val outer = radius + 26
+        for (j in 0..9) {
+            val a = angle - slice * 0.47 + j * slice * 0.94 / 9
+            for (r in inner..outer step 7) {
+                val x = (centerX + r * cos(a)).toInt()
+                val y = (centerY + r * sin(a)).toInt()
+                graphics.fill(x - 4, y - 4, x + 5, y + 5, color)
+            }
+        }
     }
 
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
-        updateHovered(mouseX.toDouble(), mouseY.toDouble())
+        updateHover(mouseX.toDouble(), mouseY.toDouble())
+        graphics.fill(0, 0, width, height, 0x99000000.toInt())
 
-        graphics.fill(0, 0, width, height, 0xAA000000.toInt())
-
-        val page = getCurrentPage()
-        val items = page.items
-        val slots = getSlotCount()
-        val toggleIds = items.mapNotNull { toggleId(it) }.toSet()
-        val states = MaLiLibHotkeys.getToggleStates(toggleIds)
-        if (slots == 0) {
-            val emptyMsg = Component.translatable("menu.main.no_actions")
-            graphics.centeredText(font, emptyMsg, centerX, centerY, 0x66FFFFFF.toInt())
-            return
+        val p = page()
+        val slots = count(p)
+        val radius = QuickMenu.CONFIG.radialRadius
+        val slice = 2 * PI / slots
+        val states = MaLiLibHotkeys.getToggleStates(p.entries.mapNotNull { toggleKey(it.button) }.toSet())
+        val modern = QuickMenu.CONFIG.radialModernLook
+        if (p.entries.isEmpty()) {
+            graphics.centeredText(font, Component.literal("No actions • change profile or radial filters"), centerX, centerY - 5, -1)
         }
 
-        val radius = getRadius()
-        val deadZone = getDeadZoneRadius()
-        val sliceAngle = (2 * PI / slots).toFloat()
-        // Keep the first action at the top regardless of the number of items.
-        val startAngle = (-PI / 2).toFloat()
-
-        for (slot in 0 until slots) {
-            val angle = (startAngle + slot * sliceAngle).toDouble()
-            val itemX = (centerX + radius * cos(angle)).toInt()
-            val itemY = (centerY + radius * sin(angle)).toInt()
-            val hasItem = slot < items.size
-            val item = if (hasItem) items[slot] else null
-            val isHovered = slot == hoveredSlotIndex
-
-            val toggle = states[toggleId(item)]
-            val bgColor = when {
-                isHovered -> 0x66FFFFFF.toInt()
-                toggle == true -> 0x6646AA62
-                toggle == false -> 0x33333333
-                hasItem -> 0x44FFFFFF.toInt()
-                else -> 0x22FFFFFF.toInt()
+        for (i in 0 until slots) {
+            val entry = p.entries.getOrNull(i)
+            val angle = -PI / 2 + i * slice
+            val xx = (centerX + radius * cos(angle)).toInt()
+            val yy = (centerY + radius * sin(angle)).toInt()
+            val selected = i == hoveredIndex && entry != null
+            val enabled = states[toggleKey(entry?.button)]
+            if (modern && entry != null) sector(graphics, angle, slice, radius, selected, enabled)
+            else if (!modern) {
+                val color = if (selected) 0x885FA9FF.toInt() else 0x554A4A4A
+                graphics.fill(xx - 22, yy - 22, xx + 22, yy + 22, color)
             }
-            val borderColor = when {
-                toggle == true -> 0xFF66DD77.toInt()
-                toggle == false -> 0xFF888888.toInt()
-                isHovered -> 0xAAFFFFFF.toInt()
-                hasItem -> 0x22FFFFFF.toInt()
-                else -> 0x11FFFFFF.toInt()
+            if (entry == null) continue
+            val icon = entry.button?.icon?.takeIf { !it.isEmpty } ?: iconFor(entry.category ?: "General")
+            graphics.item(icon, xx - 8, yy - 8)
+            if (enabled != null) {
+                graphics.text(font, if (enabled) "ON" else "OFF", xx + 13, yy - 22,
+                    if (enabled) 0xFF7EE08D.toInt() else 0xFFB0B0B0.toInt(), true)
             }
-
-            graphics.fill(itemX - 14, itemY - 14, itemX + 14, itemY + 14, bgColor)
-            drawThinBorder(graphics, itemX - 14, itemY - 14, 28, 28, borderColor)
-
-            if (hasItem && !item!!.icon.isEmpty) {
-                graphics.item(item.icon, itemX - 8, itemY - 8)
+            if (slots <= 5) {
+                val clipped = if (font.width(entry.name) > 100) entry.name.take(13) + "…" else entry.name
+                graphics.text(font, clipped, xx - font.width(clipped) / 2, yy + 20, 0xFFEAEAEA.toInt(), true)
             }
-            if (toggle != null) {
-                val status = if (toggle) "ON" else "OFF"
-                graphics.text(font, status, itemX + 10, itemY - 21,
-                    if (toggle) 0xFF66DD77.toInt() else 0xFFAAAAAA.toInt(), true)
-            }
-
-            // Dense wheels have no room for labels on every button.
-            // Show compact captions for small wheels; the full hovered label
-            // appears below the wheel in all other cases.
-            if (hasItem && slots <= 6) {
-                val captionWidth = if (slots <= 3) 92 else 60
-                val labelLines = wrappedLabel(item!!.name, captionWidth, 2)
-                for ((lineIndex, line) in labelLines.withIndex()) {
-                    graphics.text(font, line, itemX - font.width(line) / 2,
-                        itemY + 16 + lineIndex * 10, 0xFFCCCCCC.toInt(), true)
-                }
+            if (entry.button?.favorite == true) {
+                graphics.text(font, "★", xx - 19, yy - 17, 0xFFFFCC66.toInt(), true)
             }
         }
+        // A readable center label and full tooltip replace overlapping captions.
+        val label = if (activeCategory == null && QuickMenu.CONFIG.radialModSubmenus) "Choose mod • click to open"
+            else "Release R to run • right-click to go back"
+        graphics.centeredText(font, Component.literal(label), centerX, centerY - 5, 0xFFC0C5D6.toInt())
+        val totalPages = pages().size
+        val title = "${p.title} • ${currentPage + 1}/$totalPages • scroll pages • P profiles • / search"
+        graphics.centeredText(font, Component.literal(title), centerX,
+            centerY - radius - 68, 0xFFEEEEEE.toInt())
 
-        val deadColor = if (isInDeadZone(mouseX.toDouble(), mouseY.toDouble())) 0x33FFFFFF.toInt() else 0x22FFFFFF.toInt()
-        graphics.fill(centerX - deadZone.toInt(), centerY - deadZone.toInt(), centerX + deadZone.toInt(), centerY + deadZone.toInt(), deadColor)
-        drawThinBorder(graphics, centerX - deadZone.toInt(), centerY - deadZone.toInt(), (deadZone * 2).toInt(), (deadZone * 2).toInt(), 0x44FFFFFF.toInt())
-
-        val total = totalPages()
-        if (total > 1 || QuickMenu.CONFIG.radialGroupByMod) {
-            val pageText = "${page.group}  •  Page ${currentPage + 1} / $total  •  Scroll to switch"
-            graphics.text(font, pageText, centerX - font.width(pageText) / 2,
-                centerY - radius.toInt() - 34, 0xFFDDDDDD.toInt(), true)
-        }
-
-        // The full selected action label is always visible, even when long.
-        val selected = hoveredAction
-        // A short label on a one-item wheel is already fully visible beside
-        // its icon; don't repeat it again in the footer.
-        if (selected != null && (slots > 1 || font.width(selected.name) > 92)) {
-            val lines = wrappedLabel(selected.name, minOf((width - 40).coerceAtLeast(100), 440), 4)
-            val state = states[toggleId(selected)]
-            for ((lineIndex, line) in lines.withIndex()) {
-                graphics.text(font, line, centerX - font.width(line) / 2,
-                    centerY + radius.toInt() + 45 + lineIndex * 10,
-                    if (state == true) 0xFF77DD88.toInt() else -1, true)
+        val selection = hovered
+        if (selection != null) {
+            val action = selection.button
+            val type = if (selection.category != null) "Open category: ${selection.category}" else
+                "Action: ${selection.name} • ${action?.let { modName(it) } ?: "General"}"
+            graphics.centeredText(font, Component.literal(type.take(100)), centerX,
+                centerY + radius + 43, 0xFFFFFFFF.toInt())
+            if (action != null) {
+                val description = action.actions.joinToString(" + ") { it.getDisplayString() }.take(130)
+                graphics.centeredText(font, Component.literal(description), centerX,
+                    centerY + radius + 57, 0xFFAAAAAA.toInt())
+                val state = states[toggleKey(action)]
+                if (state != null) graphics.centeredText(font,
+                    Component.literal(if (state) "State: ON" else "State: OFF"),
+                    centerX, centerY + radius + 71,
+                    if (state) 0xFF77DD88.toInt() else 0xFFAAAAAA.toInt())
             }
         }
-    }
-
-    private fun drawThinBorder(graphics: GuiGraphicsExtractor, x: Int, y: Int, w: Int, h: Int, color: Int) {
-        graphics.fill(x, y, x + w, y + 1, color)
-        graphics.fill(x, y + h - 1, x + w, y + h, color)
-        graphics.fill(x, y + 1, x + 1, y + h - 1, color)
-        graphics.fill(x + w - 1, y + 1, x + w, y + h - 1, color)
     }
 
     override fun isPauseScreen(): Boolean = false
