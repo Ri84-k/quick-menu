@@ -7,6 +7,8 @@ import xyz.inorganic.quickmenu.other.ActionButtonDataHandler
 import xyz.inorganic.quickmenu.other.ActionExecutor
 import xyz.inorganic.quickmenu.other.KeybindHandler
 import xyz.inorganic.quickmenu.other.ModKeybindings
+import xyz.inorganic.quickmenu.other.ModConfig
+import xyz.inorganic.quickmenu.QuickMenu
 import xyz.inorganic.quickmenu.ui.MainUI
 import xyz.inorganic.quickmenu.ui.RadialMenuUI
 import org.lwjgl.glfw.GLFW
@@ -61,19 +63,25 @@ object KeybindManager {
     private fun handleRadialKey(client: Minecraft) {
         val rawKey = (ModKeybindings.radialOpenKeybinding as KeyBindingMixin).key
         val isDown = InputConstants.isKeyDown(client.window, rawKey.value)
+        val toggle = QuickMenu.CONFIG.radialActivationMode == ModConfig.RadialActivationMode.TOGGLE
 
-        if (isDown) {
-            if (!radialKeyPressed && client.gui.screen() == null && !isModifierHeld(rawKey, client)) {
+        if (toggle) {
+            // Edge-trigger only: releasing R never runs a hovered action.
+            if (isDown && !radialKeyPressed && !isModifierHeld(rawKey, client)) {
+                when (client.gui.screen()) {
+                    is RadialMenuUI -> client.gui.setScreen(null)
+                    null -> client.gui.setScreen(RadialMenuUI())
+                }
+            }
+        } else {
+            if (isDown && !radialKeyPressed && client.gui.screen() == null && !isModifierHeld(rawKey, client)) {
                 client.gui.setScreen(RadialMenuUI())
             }
-            radialKeyPressed = true
-        } else {
-            if (client.gui.screen() is RadialMenuUI) {
-                val screen = client.gui.screen() as RadialMenuUI
-                screen.handleKeyRelease()
+            if (!isDown && radialKeyPressed && client.gui.screen() is RadialMenuUI) {
+                (client.gui.screen() as RadialMenuUI).handleKeyRelease()
             }
-            radialKeyPressed = false
         }
+        radialKeyPressed = isDown
     }
 
     private fun handleMacroStopKey(client: Minecraft) {
