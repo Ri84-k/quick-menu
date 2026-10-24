@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
+import java.awt.Desktop
 import xyz.inorganic.quickmenu.other.CustomIconTextures
 
 /** Select PNG files the player copied into config/quickmenu/icons. */
@@ -29,8 +30,17 @@ class CustomIconPickerUI : Screen(Component.literal("Choose Custom PNG Icon")) {
             minecraft?.gui?.setScreen(this)
             rebuildWidgets()
         }.pos(left + 10, bottom - 27).size(75, 20).build())
-        addRenderableWidget(Button.builder(Component.literal("Copy folder path")) {
-            minecraft?.keyboardHandler?.setClipboard(CustomIconTextures.folder().toAbsolutePath().toString())
+        addRenderableWidget(Button.builder(Component.literal("Open icons folder")) {
+            val folder = CustomIconTextures.folder().toFile()
+            try {
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                    Desktop.getDesktop().open(folder)
+                } else {
+                    minecraft?.keyboardHandler?.setClipboard(folder.absolutePath)
+                }
+            } catch (_: Exception) {
+                minecraft?.keyboardHandler?.setClipboard(folder.absolutePath)
+            }
         }.pos(left + 90, bottom - 27).size(130, 20).build())
         addRenderableWidget(Button.builder(Component.literal("Use Item Icon")) {
             onSelected("")
@@ -79,7 +89,7 @@ class CustomIconPickerUI : Screen(Component.literal("Choose Custom PNG Icon")) {
             y += 24
         }
         graphics.disableScissor()
-        if (files.isEmpty()) graphics.text(font, "No PNG files found. Copy the folder path below.",
+        if (files.isEmpty()) graphics.text(font, "No PNG files found. Use Open icons folder.",
             left + 12, top + 69, -1, false)
     }
 
