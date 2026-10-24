@@ -66,12 +66,43 @@ object MaLiLibHotkeys {
                 val state = getter.invoke(owner)
                 if (state is Boolean) states[located.entry.id] = state
             } catch (_: ReflectiveOperationException) {
-                // Hotkey isn't backed by a boolean config.
+                // An action hotkey may control a separate boolean config, rather than
+                // being a boolean config itself. See the guarded Litematica fallback.
             } catch (_: SecurityException) {
                 // No accessible state.
             }
+            if (!states.containsKey(located.entry.id)) {
+                readLinkedToggle(located.entry.id)?.let { states[located.entry.id] = it }
+            }
         }
         return states
+    }
+
+    /**
+     * Some MaLiLib hotkeys have a callback that toggles a separate config entry.
+     * Litematica ToolEnable is one such action. Read its actual config, never
+     * infer state from the number of menu clicks (which can go out of sync).
+     */
+    private fun readLinkedToggle(id: String): Boolean? {
+        if (getModName(id)?.equals("Litematica", ignoreCase = true) != true) return null
+        val action = id.substringAfterLast('|').lowercase()
+        val field = when {
+            action.contains("toolenable") || action.contains("toolitemenabled") ||
+                action.contains("toolitem") -> "TOOL_ITEM_ENABLED"
+            else -> return null
+        }
+        return try {
+            val cls = Class.forName("fi.dy.masa.litematica.config.Configs\$Generic")
+            val config = cls.getField(field).get(null)
+            val state = config.javaClass.getMethod("getBooleanValue").invoke(config)
+            state as? Boolean
+        } catch (_: ReflectiveOperationException) {
+            null
+        } catch (_: LinkageError) {
+            null
+        } catch (_: SecurityException) {
+            null
+        }
     }
 
     private fun scan(): List<Located> {
