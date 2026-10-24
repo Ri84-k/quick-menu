@@ -163,6 +163,39 @@ object MaLiLibHotkeys {
     }
 
     /**
+     * Tweakeroo's placement grid uses INGAME_BOTH (press AND release). A menu
+     * action has no physical held-key lifecycle, so use the real config toggle
+     * rather than imitating one edge of a held hotkey. This also preserves
+     * Tweakeroo's onValueChanged and dirty-state handling.
+     *
+     * Restricted to this exact registered toggle to avoid changing the special
+     * behaviors of other Tweakeroo callbacks (freecam, scroll-adjustables, etc).
+     * Returning null means the implementation did not match / is unavailable,
+     * and the existing callback pathway should be tried instead.
+     */
+    private fun togglePlacementGrid(target: Located): Boolean? {
+        if (!target.entry.modName.equals("Tweakeroo", ignoreCase = true) ||
+            target.entry.id.substringAfterLast('|') != "tweakPlacementGrid") {
+            return null
+        }
+        return try {
+            val feature = target.hotkey
+            val before = feature.javaClass.getMethod("getBooleanValue")
+                .invoke(feature) as? Boolean ?: return null
+            feature.javaClass.getMethod("toggleBooleanValue").invoke(feature)
+            val after = feature.javaClass.getMethod("getBooleanValue")
+                .invoke(feature) as? Boolean
+            after != null && after != before
+        } catch (_: ReflectiveOperationException) {
+            null
+        } catch (_: LinkageError) {
+            null
+        } catch (_: SecurityException) {
+            null
+        }
+    }
+
+    /**
      * Invokes the registered callback. This is appropriate for single-click and toggle
      * hotkeys; it does not synthesize sustained physical keyboard/mouse input.
      */
@@ -170,6 +203,7 @@ object MaLiLibHotkeys {
         if (!isMaLiLib(id)) return false
         return try {
             val target = scan().firstOrNull { it.entry.id == id } ?: return false
+            togglePlacementGrid(target)?.let { return it }
             val callback = target.keybind.javaClass.getMethod("getCallback")
                 .invoke(target.keybind) ?: return false
             val settings = target.keybind.javaClass.getMethod("getSettings")
