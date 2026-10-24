@@ -18,6 +18,8 @@ class ModConfig {
         STATIC, DYNAMIC
     }
 
+    enum class WheelProfile { ALL, BUILDING, REDSTONE, FARMING, GENERAL }
+
     var buttonsPerRow: Int = 5
     var visibleRows: Int = 2
     var closeOnKeyReleased: Boolean = false
@@ -35,6 +37,13 @@ class ModConfig {
     var radialDeadZoneRadius: Int = 15
     var radialCloseOnAction: Boolean = true
     var radialGroupByMod: Boolean = true
+    // Visibility is independent of layout; true retains the old dynamic filtering.
+    var radialOnlySelected: Boolean = true
+    var radialModSubmenus: Boolean = true
+    var radialFavoritesPage: Boolean = true
+    var radialModernLook: Boolean = true
+    var radialSearchEnabled: Boolean = true
+    var radialProfile: WheelProfile = WheelProfile.ALL
     var macroMaxStepsPerTick: Int = 10000
     var macroMaxRunSeconds: Int = 10
     var macroMaxNesting: Int = 16
