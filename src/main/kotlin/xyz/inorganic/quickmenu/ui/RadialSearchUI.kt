@@ -8,6 +8,7 @@ import net.minecraft.network.chat.Component
 import xyz.inorganic.quickmenu.data.ActionButtonData
 import xyz.inorganic.quickmenu.data.command_actions.KeybindActionData
 import xyz.inorganic.quickmenu.other.MaLiLibHotkeys
+import xyz.inorganic.quickmenu.other.CustomIconTextures
 
 /**
  * Opens with / or F from the wheel. It is a standalone screen so releasing
@@ -101,7 +102,7 @@ class RadialSearchUI(private val available: List<ActionButtonData>) :
                 val hovered = mouseX >= left && mouseX < right && mouseY >= y && mouseY < y + rowHeight
                 graphics.fill(left + 7, y + 1, right - 7, y + rowHeight - 2,
                     if (hovered) 0x88577799.toInt() else 0x44292933)
-                if (!button.icon.isEmpty) graphics.item(button.icon, left + 12, y + 5)
+                if (!(button.customIconName.isNotEmpty() && CustomIconTextures.draw(graphics, button.customIconName, left + 12, y + 5, 16)) && !button.icon.isEmpty) graphics.item(button.icon, left + 12, y + 5)
                 graphics.text(font, Component.literal(displayName(button).take(60)), left + 36, y + 7, -1, true)
                 if (button.favorite) graphics.text(font, "★", right - 24, y + 7, 0xFFFFCC66.toInt(), true)
             }
