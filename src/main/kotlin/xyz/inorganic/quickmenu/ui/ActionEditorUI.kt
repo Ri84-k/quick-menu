@@ -29,6 +29,7 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
     private lateinit var keybindBtn: Button
     private lateinit var folderCheckbox: Checkbox
     private lateinit var radialCheckbox: Checkbox
+    private lateinit var favoriteCheckbox: Checkbox
 
     private var settingKeybind = false
     private var isBoundKeybind = false
@@ -37,11 +38,11 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
     private var menuX = 0
     private var menuY = 0
     private var menuWidth = 260
-    private var menuHeight = 150
+    private var menuHeight = 180
 
     init {
         originalAction?.let {
-            actionButtonData = ActionButtonData(it.name, it.actions.toMutableList(), it.icon.copy(), it.keybind.toMutableList(), it.isFolder, it.children.toMutableList(), it.registeredForRadial)
+            actionButtonData = ActionButtonData(it.name, it.actions.toMutableList(), it.icon.copy(), it.keybind.toMutableList(), it.isFolder, it.children.toMutableList(), it.registeredForRadial, it.favorite, it.radialProfile)
             keybind.addAll(it.keybind)
             if (keybind.size >= 4) isBoundKeybind = true
             isNewAction = false
@@ -100,6 +101,23 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
             }
             .build()
         addRenderableWidget(radialCheckbox)
+
+        favoriteCheckbox = Checkbox.builder(Component.literal("Favorite"), font)
+            .pos(menuX + 10, menuY + 145)
+            .selected(actionButtonData.favorite)
+            .onValueChange { _, value -> actionButtonData.favorite = value }
+            .build()
+        addRenderableWidget(favoriteCheckbox)
+
+        // Profiles are labels on saved buttons, not duplicates of the actions.
+        // ALL displays everything; individual profiles display matching labels.
+        addRenderableWidget(Button.builder(Component.literal("Profile: ${actionButtonData.radialProfile}")) {
+            syncInputToData()
+            val profiles = listOf("GENERAL", "BUILDING", "REDSTONE", "FARMING")
+            val index = profiles.indexOf(actionButtonData.radialProfile)
+            actionButtonData.radialProfile = profiles[(index + 1).coerceAtLeast(0) % profiles.size]
+            rebuildWidgets()
+        }.pos(menuX + 100, menuY + 145).size(140, 20).build())
 
         if (!actionButtonData.isFolder) {
             addRenderableWidget(Button.builder(Component.literal("Edit Actions >")) {
@@ -202,6 +220,8 @@ class ActionEditorUI(private val originalAction: ActionButtonData? = null) : Scr
                 it.icon = actionButtonData.icon
                 it.keybind = actionButtonData.keybind
                 it.registeredForRadial = actionButtonData.registeredForRadial
+                it.favorite = actionButtonData.favorite
+                it.radialProfile = actionButtonData.radialProfile
 
                 if (it.isFolder && !actionButtonData.isFolder && actionButtonData.children.isNotEmpty()) {
                     val index = parentList.indexOf(it)
