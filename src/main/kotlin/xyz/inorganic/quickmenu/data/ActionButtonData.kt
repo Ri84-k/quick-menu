@@ -22,7 +22,8 @@ class ActionButtonData(
     var registeredForRadial: Boolean = false,
     var favorite: Boolean = false,
     var radialProfile: String = "GENERAL",
-    var customIconName: String = ""
+    var customIconName: String = "",
+    var radialOrder: Int = Int.MAX_VALUE
 ) {
     var keyPressed = false
 
