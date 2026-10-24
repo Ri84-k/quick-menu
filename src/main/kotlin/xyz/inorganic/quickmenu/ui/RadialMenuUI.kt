@@ -480,14 +480,30 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
         }
         // A readable center label and full tooltip replace overlapping captions.
         val toggleMode = QuickMenu.CONFIG.radialActivationMode == ModConfig.RadialActivationMode.TOGGLE
-        val label = if (activeCategory == null && QuickMenu.CONFIG.radialModSubmenus) "Choose mod • click to open"
-            else if (toggleMode) "Left-click to run • R/Esc close • right-click back"
-            else "Release R to run • right-click to go back"
+        val label = if (draggingAction != null) "REORDER"
+            else if (activeCategory == null && QuickMenu.CONFIG.radialModSubmenus) "MODS"
+            else if (toggleMode) "SELECT"
+            else "RELEASE R"
         graphics.centeredText(font, Component.literal(label), centerX, centerY - 5, 0xFFC0C5D6.toInt())
+
+        // Short two-line banner avoids overlapping category labels near the center.
         val totalPages = pages().size
-        val title = "${p.title} • ${currentPage + 1}/$totalPages • scroll pages • P profiles • / search"
-        graphics.centeredText(font, Component.literal(title), centerX,
-            centerY - radius - 68, 0xFFEEEEEE.toInt())
+        val bannerW = minOf(350, width - 12)
+        val bannerX = centerX - bannerW / 2
+        val bannerY = maxOf(4, centerY - radius - 103)
+        graphics.fill(bannerX, bannerY, bannerX + bannerW, bannerY + 39, 0xE31E2635.toInt())
+        graphics.fill(bannerX, bannerY, bannerX + bannerW, bannerY + 2, 0xFF6DA1EB.toInt())
+        val title = if (activeCategory == null) "QUICK MENU  /  CATEGORIES"
+            else "QUICK MENU  /  " + activeCategory!!.uppercase(Locale.ROOT)
+        graphics.centeredText(font, Component.literal(title.take(44)), centerX, bannerY + 8, 0xFFF1F5FC.toInt())
+        val subtitle = QuickMenu.CONFIG.radialProfile.name + " PROFILE    •    PAGE " +
+            (currentPage + 1) + "/" + totalPages
+        graphics.centeredText(font, Component.literal(subtitle), centerX, bannerY + 23, 0xFF9FC8FF.toInt())
+        val hint = if (activeCategory == null)
+            "Left-click: Open  •  Right-click: Edit icon  •  P: Profile"
+        else "Alt + Drag: Reorder  •  Right-click: Back  •  Scroll: Pages"
+        graphics.centeredText(font, Component.literal(hint), centerX,
+            minOf(height - 13, centerY + radius + 96), 0xFFBFC6D5.toInt())
 
         val selection = hovered
         if (selection != null) {
