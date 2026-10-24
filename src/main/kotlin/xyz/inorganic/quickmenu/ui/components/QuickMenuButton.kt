@@ -9,13 +9,15 @@ import net.minecraft.resources.Identifier
 import net.minecraft.world.item.ItemStack
 import org.lwjgl.glfw.GLFW
 import java.util.function.Consumer
+import xyz.inorganic.quickmenu.other.CustomIconTextures
 
 class QuickMenuButton(
     var itemIcon: ItemStack = ItemStack.EMPTY,
     onPress: OnPress,
     var onRightClick: Consumer<QuickMenuButton> = Consumer {},
     var isFolder: Boolean = false,
-    var registeredForRadial: Boolean = false
+    var registeredForRadial: Boolean = false,
+    var customIconName: String = ""
 ) : Button(0, 0, 26, 26, Component.empty(), onPress, DEFAULT_NARRATION) {
 
     private val FOLDER_ICON = Identifier.fromNamespaceAndPath("quickmenu", "textures/folder_icon.png")
@@ -29,7 +31,7 @@ class QuickMenuButton(
         val borderColor = if (isHovered && active) 0xAAFFFFFF.toInt() else 0x22FFFFFF.toInt()
         renderOutline(graphics, x, y, width, height, borderColor)
 
-        if (!itemIcon.isEmpty) {
+        if (!(customIconName.isNotEmpty() && CustomIconTextures.draw(graphics, customIconName, x + (width - 16) / 2, y + (height - 16) / 2, 16)) && !itemIcon.isEmpty) {
             graphics.item(itemIcon, x + (width - 16) / 2, y + (height - 16) / 2)
             graphics.itemDecorations(Minecraft.getInstance().font, itemIcon, x + (width - 16) / 2, y + (height - 16) / 2)
         }
