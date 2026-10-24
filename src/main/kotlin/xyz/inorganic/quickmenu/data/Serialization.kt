@@ -20,14 +20,18 @@ data class ActionButtonDataJSON(
     val keybind: List<Int> = emptyList(),
     val isFolder: Boolean = false,
     val children: List<ActionButtonDataJSON> = emptyList(),
-    val registeredForRadial: Boolean = false
+    val registeredForRadial: Boolean = false,
+    val favorite: Boolean = false,
+    val radialProfile: String = "GENERAL"
 ) {
     fun toActionButtonData(): ActionButtonData {
         val data = ActionButtonData(
             name = name,
             keybind = keybind.toMutableList(),
             isFolder = isFolder,
-            registeredForRadial = registeredForRadial
+            registeredForRadial = registeredForRadial,
+            favorite = favorite,
+            radialProfile = radialProfile
         )
         
         data.actions = actions.mapNotNull { actionList ->
@@ -80,6 +84,8 @@ fun ActionButtonData.toJSON(): ActionButtonDataJSON {
         keybind = keybind.toList(),
         isFolder = isFolder,
         children = children.map { it.toJSON() },
-        registeredForRadial = registeredForRadial
+        registeredForRadial = registeredForRadial,
+        favorite = favorite,
+        radialProfile = radialProfile
     )
 }
