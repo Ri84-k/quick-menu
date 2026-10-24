@@ -108,7 +108,7 @@ class MainUI : Screen(Component.translatable("menu.main.title")) {
             val btnY = startY + row * rowHeight - scrollOffset
 
             if (btnY >= startY && btnY + 26 <= startY + visibleAreaHeight) {
-                val button = QuickMenuButton(data.icon, { handleLeftClick(data) }, { handleRightClick(data) }, data.isFolder, data.registeredForRadial)
+                val button = QuickMenuButton(data.icon, { handleLeftClick(data) }, { handleRightClick(data) }, data.isFolder, data.registeredForRadial, data.customIconName)
                 button.x = btnX
                 button.y = btnY
                 button.setTooltip(Tooltip.create(Component.literal(data.name)))
