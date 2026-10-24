@@ -39,6 +39,8 @@ class MainUI : Screen(Component.translatable("menu.main.title")) {
     private lateinit var searchBox: EditBox
     private val buttonDataMap = mutableMapOf<QuickMenuButton, ActionButtonData>()
     private var isDraggingScrollbar = false
+    private var dragFrom: ActionButtonData? = null
+    private var dragTarget: ActionButtonData? = null
     private var firstInit = true
     private var suppressNextChar = false
 
@@ -257,6 +259,21 @@ class MainUI : Screen(Component.translatable("menu.main.title")) {
     }
 
     override fun mouseClicked(event: MouseButtonEvent, doubleClick: Boolean): Boolean {
+        // ALT+left drag to reorder buttons in Edit mode. Unlike shift/control,
+        // ALT does not conflict with the existing delete/move shortcuts.
+        if (editMode && !isSearching && event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT &&
+            (InputConstants.isKeyDown(minecraft!!.window, GLFW.GLFW_KEY_LEFT_ALT) ||
+                InputConstants.isKeyDown(minecraft!!.window, GLFW.GLFW_KEY_RIGHT_ALT))) {
+            val picked = buttonDataMap.entries.firstOrNull { (button, _) ->
+                event.x() >= button.x && event.x() < button.x + button.width &&
+                    event.y() >= button.y && event.y() < button.y + button.height
+            }
+            if (picked != null) {
+                dragFrom = picked.value
+                dragTarget = picked.value
+                return true
+            }
+        }
         if (isMouseOverScrollbar(event.x(), event.y())) {
             isDraggingScrollbar = true
             updateScrollFromMouse(event.y())
@@ -295,6 +312,13 @@ class MainUI : Screen(Component.translatable("menu.main.title")) {
     }
 
     override fun mouseDragged(event: MouseButtonEvent, deltaX: Double, deltaY: Double): Boolean {
+        if (dragFrom != null) {
+            dragTarget = buttonDataMap.entries.firstOrNull { (button, _) ->
+                event.x() >= button.x && event.x() < button.x + button.width &&
+                    event.y() >= button.y && event.y() < button.y + button.height
+            }?.value
+            return true
+        }
         if (isDraggingScrollbar) {
             updateScrollFromMouse(event.y())
             return true
@@ -303,6 +327,25 @@ class MainUI : Screen(Component.translatable("menu.main.title")) {
     }
 
     override fun mouseReleased(event: MouseButtonEvent): Boolean {
+        if (dragFrom != null) {
+            val from = dragFrom
+            val target = buttonDataMap.entries.firstOrNull { (button, _) ->
+                event.x() >= button.x && event.x() < button.x + button.width &&
+                    event.y() >= button.y && event.y() < button.y + button.height
+            }?.value ?: dragTarget
+            dragFrom = null
+            dragTarget = null
+            val siblings = NavigationState.getCurrentChildren()
+            val oldIndex = siblings.indexOf(from)
+            val newIndex = siblings.indexOf(target)
+            if (oldIndex >= 0 && newIndex >= 0 && oldIndex != newIndex) {
+                val item = siblings.removeAt(oldIndex)
+                siblings.add(newIndex, item)
+                ActionButtonDataHandler.save()
+                rebuildWidgets()
+            }
+            return true
+        }
         isDraggingScrollbar = false
         if (!editMode && QuickMenu.CONFIG.closeOnKeyReleased) {
             if (ModKeybindings.menuOpenKeybinding.matchesMouse(event)) {
@@ -411,6 +454,14 @@ class MainUI : Screen(Component.translatable("menu.main.title")) {
         if (actions.isEmpty()) {
             val emptyMsg = Component.translatable("menu.main.no_actions")
             graphics.centeredText(font, emptyMsg, menuX + menuWidth / 2, menuY + menuHeight / 2, 0x66FFFFFF.toInt())
+        }
+
+        if (editMode && dragFrom != null) {
+            val btn = buttonDataMap.entries.firstOrNull { it.value === dragTarget }?.key
+            if (btn != null) {
+                graphics.fill(btn.x - 2, btn.y - 2, btn.x + btn.width + 2, btn.y, 0xFF88AAFF.toInt())
+                graphics.fill(btn.x - 2, btn.y + btn.height, btn.x + btn.width + 2, btn.y + btn.height + 2, 0xFF88AAFF.toInt())
+            }
         }
 
         if (editMode) {
