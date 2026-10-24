@@ -308,7 +308,7 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
         val top = centerY - diameter / 2
         val background = Identifier.fromNamespaceAndPath("quickmenu", "textures/radial/ring.png")
         graphics.blit(RenderPipelines.GUI_TEXTURED, background, left, top,
-            0, 0, diameter, diameter, 256, 256, 256, 256)
+            0f, 0f, diameter, diameter, 256, 256, 256, 256)
 
         if (hoveredIndex in 0 until slots && hovered != null) {
             val wedge = Identifier.fromNamespaceAndPath("quickmenu", "textures/radial/wedge_$slots.png")
@@ -318,7 +318,7 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
             matrices.rotate((hoveredIndex * 2.0 * PI / slots).toFloat())
             matrices.translate(-centerX.toFloat(), -centerY.toFloat())
             graphics.blit(RenderPipelines.GUI_TEXTURED, wedge, left, top,
-                0, 0, diameter, diameter, 256, 256, 256, 256)
+                0f, 0f, diameter, diameter, 256, 256, 256, 256)
             matrices.popMatrix()
         }
     }
