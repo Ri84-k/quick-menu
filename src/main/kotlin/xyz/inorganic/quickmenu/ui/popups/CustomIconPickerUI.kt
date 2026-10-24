@@ -6,7 +6,7 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
-import java.awt.Desktop
+import net.minecraft.Util
 import xyz.inorganic.quickmenu.other.CustomIconTextures
 
 /** Select PNG files the player copied into config/quickmenu/icons. */
@@ -19,6 +19,7 @@ class CustomIconPickerUI : Screen(Component.literal("Choose Custom PNG Icon")) {
     private var top = 0
     private var right = 0
     private var bottom = 0
+    private var folderStatus = ""
 
     override fun init() {
         left = (width - 320) / 2
@@ -31,15 +32,25 @@ class CustomIconPickerUI : Screen(Component.literal("Choose Custom PNG Icon")) {
             rebuildWidgets()
         }.pos(left + 10, bottom - 27).size(75, 20).build())
         addRenderableWidget(Button.builder(Component.literal("Open icons folder")) {
-            val folder = CustomIconTextures.folder().toFile()
+            val folder = CustomIconTextures.folder().toAbsolutePath().normalize()
             try {
-                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-                    Desktop.getDesktop().open(folder)
+                // Minecraft commonly runs with AWT Desktop disabled / headless.
+                // Windows Explorer is the reliable path on the player's Windows PC.
+                if (System.getProperty("os.name", "").contains("Windows", ignoreCase = true)) {
+                    ProcessBuilder("explorer.exe", folder.toString()).start()
                 } else {
-                    minecraft?.keyboardHandler?.setClipboard(folder.absolutePath)
+                    // Use Minecraft's own platform opener on Linux/macOS.
+                    Util.getPlatform().openPath(folder)
                 }
+                folderStatus = "Opening icons folder..."
             } catch (_: Exception) {
-                minecraft?.keyboardHandler?.setClipboard(folder.absolutePath)
+                try {
+                    Util.getPlatform().openPath(folder)
+                    folderStatus = "Opening with system file manager..."
+                } catch (_: Exception) {
+                    minecraft?.keyboardHandler?.setClipboard(folder.toString())
+                    folderStatus = "Unable to open: folder path copied"
+                }
             }
         }.pos(left + 90, bottom - 27).size(130, 20).build())
         addRenderableWidget(Button.builder(Component.literal("Use Item Icon")) {
@@ -89,6 +100,9 @@ class CustomIconPickerUI : Screen(Component.literal("Choose Custom PNG Icon")) {
             y += 24
         }
         graphics.disableScissor()
+        if (folderStatus.isNotEmpty()) {
+            graphics.text(font, folderStatus, left + 11, bottom - 37, 0xFFADD4FF.toInt(), false)
+        }
         if (files.isEmpty()) graphics.text(font, "No PNG files found. Use Open icons folder.",
             left + 12, top + 69, -1, false)
     }
