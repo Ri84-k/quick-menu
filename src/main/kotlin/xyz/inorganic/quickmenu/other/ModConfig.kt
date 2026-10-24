@@ -18,6 +18,8 @@ class ModConfig {
         STATIC, DYNAMIC
     }
 
+    enum class RadialActivationMode { HOLD, TOGGLE }
+
     enum class WheelProfile { ALL, BUILDING, REDSTONE, FARMING, GENERAL }
 
     var buttonsPerRow: Int = 5
@@ -33,6 +35,7 @@ class ModConfig {
     var deleteModifier: String = "key.keyboard.left.shift"
     var radialMaxItems: Int = 8
     var radialDisplayMode: RadialDisplayMode = RadialDisplayMode.STATIC
+    var radialActivationMode: RadialActivationMode = RadialActivationMode.HOLD
     var radialRadius: Int = 60
     var radialDeadZoneRadius: Int = 15
     var radialCloseOnAction: Boolean = true
@@ -42,6 +45,7 @@ class ModConfig {
     var radialModSubmenus: Boolean = true
     var radialFavoritesPage: Boolean = true
     var radialModernLook: Boolean = true
+    var radialPngTextures: Boolean = true
     var radialSearchEnabled: Boolean = true
     var radialProfile: WheelProfile = WheelProfile.ALL
     var macroMaxStepsPerTick: Int = 10000
