@@ -575,8 +575,9 @@ class MainUI : Screen(Component.translatable("menu.main.title")) {
             scrollOffset = 0
             rebuildWidgets()
         } else {
-            data.run()
+            // An action may open another mod's GUI. Don't close that new screen.
             if (QuickMenu.CONFIG.closeOnAction) minecraft?.gui?.setScreen(null)
+            data.run()
         }
     }
 
