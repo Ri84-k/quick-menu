@@ -229,7 +229,7 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
             draggingAction = null
             dragDropTarget = null
             if (target != null && source !== target && canReorderCategory()) {
-                val ordered = groups()[activeCategory].orEmpty().toMutableList()
+                val ordered = groups()[activeCategory.orEmpty()].orEmpty().toMutableList()
                 val from = ordered.indexOf(source)
                 val to = ordered.indexOf(target)
                 if (from >= 0 && to >= 0) {
