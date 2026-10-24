@@ -21,7 +21,8 @@ class ActionButtonData(
     var children: MutableList<ActionButtonData> = mutableListOf(),
     var registeredForRadial: Boolean = false,
     var favorite: Boolean = false,
-    var radialProfile: String = "GENERAL"
+    var radialProfile: String = "GENERAL",
+    var customIconName: String = ""
 ) {
     var keyPressed = false
 
