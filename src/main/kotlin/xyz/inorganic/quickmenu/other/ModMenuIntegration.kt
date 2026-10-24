@@ -121,6 +121,15 @@ class ModMenuIntegration : ModMenuApi {
                     }
                     .binding(ModConfig.RadialDisplayMode.STATIC, { config.radialDisplayMode }, { config.radialDisplayMode = it })
                     .build())
+                .option(Option.createBuilder<ModConfig.RadialActivationMode>()
+                    .name(Component.literal("Radial activation mode"))
+                    .description(OptionDescription.of(Component.literal("HOLD: hold R and release over an action to execute. TOGGLE: press R to open/close, left-click to run actions, press P for profiles, or Esc to cancel.")))
+                    .controller { opt ->
+                        EnumControllerBuilder.create(opt)
+                            .enumClass(ModConfig.RadialActivationMode::class.java)
+                    }
+                    .binding(ModConfig.RadialActivationMode.HOLD, { config.radialActivationMode }, { config.radialActivationMode = it })
+                    .build())
                 .option(Option.createBuilder<Int>()
                     .name(Component.translatable("text.config.quickmenu.option.radialRadius"))
                     .description(OptionDescription.of(Component.literal("Distance from the center to the wheel's buttons in screen pixels. A larger radius makes room for more actions and longer names.")))
@@ -176,6 +185,12 @@ class ModMenuIntegration : ModMenuApi {
                     .description(OptionDescription.of(Component.literal("Draw connected radial sectors with a highlighted selection and readable tooltips.")))
                     .controller { BooleanControllerBuilder.create(it) }
                     .binding(true, { config.radialModernLook }, { config.radialModernLook = it })
+                    .build())
+                .option(Option.createBuilder<Boolean>()
+                    .name(Component.literal("Use PNG radial textures"))
+                    .description(OptionDescription.of(Component.literal("Use smooth transparent PNG wheel and highlighted sectors instead of the experimental pixelated geometry. Turn off to use the older renderer. Modern appearance must also be enabled.")))
+                    .controller { BooleanControllerBuilder.create(it) }
+                    .binding(true, { config.radialPngTextures }, { config.radialPngTextures = it })
                     .build())
                 .option(Option.createBuilder<Boolean>()
                     .name(Component.literal("Wheel action search"))
