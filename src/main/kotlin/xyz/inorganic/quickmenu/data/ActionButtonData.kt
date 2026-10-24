@@ -19,7 +19,9 @@ class ActionButtonData(
     keybind: MutableList<Int> = mutableListOf(),
     var isFolder: Boolean = false,
     var children: MutableList<ActionButtonData> = mutableListOf(),
-    var registeredForRadial: Boolean = false
+    var registeredForRadial: Boolean = false,
+    var favorite: Boolean = false,
+    var radialProfile: String = "GENERAL"
 ) {
     var keyPressed = false
 
