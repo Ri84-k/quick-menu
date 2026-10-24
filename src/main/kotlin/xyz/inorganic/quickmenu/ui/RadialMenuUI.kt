@@ -5,6 +5,8 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.network.chat.Component
+import net.minecraft.client.renderer.RenderPipelines
+import net.minecraft.resources.Identifier
 import org.lwjgl.glfw.GLFW
 import xyz.inorganic.quickmenu.QuickMenu
 import xyz.inorganic.quickmenu.data.ActionButtonData
@@ -12,6 +14,7 @@ import xyz.inorganic.quickmenu.data.command_actions.KeybindActionData
 import xyz.inorganic.quickmenu.other.ActionButtonDataHandler
 import xyz.inorganic.quickmenu.other.MaLiLibHotkeys
 import xyz.inorganic.quickmenu.other.ModConfig
+import xyz.inorganic.quickmenu.other.CustomIconTextures
 import kotlin.math.*
 
 /**
@@ -294,6 +297,32 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
         }
     }
 
+    /**
+     * A fixed transparent background PNG plus per-sector highlight PNG sprites.
+     * The sprite rotates around the wheel's center, so 1..16 entries all align
+     * with the actual mouse hit-testing angles.
+     */
+    private fun drawPngWheel(graphics: GuiGraphicsExtractor, slots: Int, radius: Int) {
+        val diameter = (2 * (radius + 27)).coerceAtLeast(90)
+        val left = centerX - diameter / 2
+        val top = centerY - diameter / 2
+        val background = Identifier.fromNamespaceAndPath("quickmenu", "textures/radial/ring.png")
+        graphics.blit(RenderPipelines.GUI_TEXTURED, background, left, top,
+            0, 0, diameter, diameter, 256, 256, 256, 256)
+
+        if (hoveredIndex in 0 until slots && hovered != null) {
+            val wedge = Identifier.fromNamespaceAndPath("quickmenu", "textures/radial/wedge_$slots.png")
+            val matrices = graphics.pose()
+            matrices.pushMatrix()
+            matrices.translate(centerX.toFloat(), centerY.toFloat())
+            matrices.rotate((hoveredIndex * 2.0 * PI / slots).toFloat())
+            matrices.translate(-centerX.toFloat(), -centerY.toFloat())
+            graphics.blit(RenderPipelines.GUI_TEXTURED, wedge, left, top,
+                0, 0, diameter, diameter, 256, 256, 256, 256)
+            matrices.popMatrix()
+        }
+    }
+
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
         updateHover(mouseX.toDouble(), mouseY.toDouble())
         graphics.fill(0, 0, width, height, 0x99000000.toInt())
@@ -304,6 +333,7 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
         val slice = 2 * PI / slots
         val states = MaLiLibHotkeys.getToggleStates(p.entries.mapNotNull { toggleKey(it.button) }.toSet())
         val modern = QuickMenu.CONFIG.radialModernLook
+        val pngWheel = modern && QuickMenu.CONFIG.radialPngTextures
         if (p.entries.isEmpty()) {
             val config = QuickMenu.CONFIG
             val heading = when {
@@ -324,6 +354,8 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
             return
         }
 
+        if (pngWheel) drawPngWheel(graphics, slots, radius)
+
         for (i in 0 until slots) {
             val entry = p.entries.getOrNull(i)
             val angle = -PI / 2 + i * slice
@@ -331,14 +363,17 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
             val yy = (centerY + radius * sin(angle)).toInt()
             val selected = i == hoveredIndex && entry != null
             val enabled = states[toggleKey(entry?.button)]
-            if (modern) sector(graphics, angle, slice, radius, selected, enabled, entry != null)
+            if (modern && !pngWheel) sector(graphics, angle, slice, radius, selected, enabled, entry != null)
             else if (!modern) {
                 val color = if (selected) 0x885FA9FF.toInt() else 0x554A4A4A
                 graphics.fill(xx - 22, yy - 22, xx + 22, yy + 22, color)
             }
             if (entry == null) continue
-            val icon = entry.button?.icon?.takeIf { !it.isEmpty } ?: iconFor(entry.category ?: "General")
-            graphics.item(icon, xx - 8, yy - 8)
+            val customName = entry.button?.customIconName.orEmpty()
+            if (customName.isBlank() || !CustomIconTextures.draw(graphics, customName, xx - 9, yy - 9, 18)) {
+                val icon = entry.button?.icon?.takeIf { !it.isEmpty } ?: iconFor(entry.category ?: "General")
+                graphics.item(icon, xx - 8, yy - 8)
+            }
             if (enabled != null) {
                 graphics.text(font, if (enabled) "ON" else "OFF", xx + 13, yy - 22,
                     if (enabled) 0xFF7EE08D.toInt() else 0xFFB0B0B0.toInt(), true)
@@ -352,7 +387,9 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
             }
         }
         // A readable center label and full tooltip replace overlapping captions.
+        val toggleMode = QuickMenu.CONFIG.radialActivationMode == ModConfig.RadialActivationMode.TOGGLE
         val label = if (activeCategory == null && QuickMenu.CONFIG.radialModSubmenus) "Choose mod • click to open"
+            else if (toggleMode) "Left-click to run • R/Esc close • right-click back"
             else "Release R to run • right-click to go back"
         graphics.centeredText(font, Component.literal(label), centerX, centerY - 5, 0xFFC0C5D6.toInt())
         val totalPages = pages().size
