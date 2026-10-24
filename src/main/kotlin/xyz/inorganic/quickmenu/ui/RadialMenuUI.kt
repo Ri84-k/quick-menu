@@ -338,6 +338,26 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
         else -> net.minecraft.world.item.Items.BOOK.defaultInstance
     }
 
+    private fun categoryOverride(category: String): String =
+        QuickMenu.CONFIG.radialCategoryIcons[category.lowercase(Locale.ROOT)].orEmpty()
+
+    private fun categoryItem(category: String): net.minecraft.world.item.ItemStack {
+        val saved = categoryOverride(category)
+        if (saved.startsWith("item:")) {
+            val parts = saved.removePrefix("item:").split(":", limit = 2)
+            if (parts.size == 2) {
+                try {
+                    return BuiltInRegistries.ITEM.getValue(
+                        Identifier.fromNamespaceAndPath(parts[0], parts[1])
+                    ).defaultInstance.copy()
+                } catch (_: Exception) {
+                    // Missing item: use the original mod-category icon.
+                }
+            }
+        }
+        return iconFor(category)
+    }
+
     private fun toggleKey(button: ActionButtonData?): String? {
         if (button == null || button.actions.size != 1) return null
         val key = button.actions.first() as? KeybindActionData ?: return null
@@ -437,9 +457,13 @@ class RadialMenuUI : Screen(Component.literal("Quick Menu Wheel")) {
                 graphics.fill(xx - 22, yy - 22, xx + 22, yy + 22, color)
             }
             if (entry == null) continue
-            val customName = entry.button?.customIconName.orEmpty()
+            val savedCategoryIcon = entry.category?.let { categoryOverride(it) }.orEmpty()
+            val customName = entry.button?.customIconName.orEmpty().ifBlank {
+                if (savedCategoryIcon.startsWith("png:")) savedCategoryIcon.removePrefix("png:") else ""
+            }
             if (customName.isBlank() || !CustomIconTextures.draw(graphics, customName, xx - 9, yy - 9, 18)) {
-                val icon = entry.button?.icon?.takeIf { !it.isEmpty } ?: iconFor(entry.category ?: "General")
+                val icon = entry.button?.icon?.takeIf { !it.isEmpty }
+                    ?: categoryItem(entry.category ?: "General")
                 graphics.item(icon, xx - 8, yy - 8)
             }
             if (enabled != null) {
