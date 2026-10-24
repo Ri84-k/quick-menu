@@ -75,6 +75,9 @@ class ActionListEditorUI(private val actionButtonData: ActionButtonData) : Scree
                             picker.previousScreen = this
                             picker.onSelectedKeybind = { id ->
                                 actionButtonData.actions[index] = KeybindActionData(id)
+                                if (actionButtonData.icon.isEmpty) {
+                                    actionButtonData.icon = MaLiLibHotkeys.suggestedIcon(id)
+                                }
                                 init()
                             }
                             minecraft?.gui?.setScreen(picker)
@@ -157,6 +160,11 @@ class ActionListEditorUI(private val actionButtonData: ActionButtonData) : Scree
                 picker.previousScreen = this
                 picker.onSelectedAction = { selected ->
                     actionButtonData.actions.add(selected)
+                    if (selected is KeybindActionData &&
+                        MaLiLibHotkeys.isMaLiLib(selected.translationKey) &&
+                        actionButtonData.icon.isEmpty) {
+                        actionButtonData.icon = MaLiLibHotkeys.suggestedIcon(selected.translationKey)
+                    }
                     init()
                 }
                 minecraft?.gui?.setScreen(picker)
