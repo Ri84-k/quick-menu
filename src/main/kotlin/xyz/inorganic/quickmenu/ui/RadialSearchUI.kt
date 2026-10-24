@@ -26,6 +26,11 @@ class RadialSearchUI(private val available: List<ActionButtonData>) :
     private var bottom = 0
     private val rowHeight = 27
 
+    private fun displayName(button: ActionButtonData): String =
+        button.name.takeIf { it.isNotBlank() }
+            ?: button.actions.firstOrNull()?.getDisplayString()?.takeIf { it.isNotBlank() }
+            ?: "Unnamed action"
+
     override fun init() {
         left = width / 2 - minOf(245, (width - 30) / 2)
         right = width - left
@@ -34,7 +39,7 @@ class RadialSearchUI(private val available: List<ActionButtonData>) :
         clearWidgets()
         search = EditBox(font, left + 12, top + 25, right - left - 24, 20, Component.empty())
         search.setMaxLength(100)
-        search.setHint(Component.literal("Search all buttons, mods, and actions"))
+        search.setHint(Component.literal("Search actions in the current wheel profile"))
         search.setValue(textQuery)
         search.setResponder {
             textQuery = it
@@ -49,7 +54,7 @@ class RadialSearchUI(private val available: List<ActionButtonData>) :
     private fun refresh() {
         val query = textQuery.trim()
         matches = available.filter { button ->
-            query.isBlank() || button.name.contains(query, ignoreCase = true) ||
+            query.isBlank() || displayName(button).contains(query, ignoreCase = true) ||
                 button.actions.any { action ->
                     action.getDisplayString().contains(query, ignoreCase = true) ||
                         (action as? KeybindActionData)?.let {
@@ -97,7 +102,7 @@ class RadialSearchUI(private val available: List<ActionButtonData>) :
                 graphics.fill(left + 7, y + 1, right - 7, y + rowHeight - 2,
                     if (hovered) 0x88577799.toInt() else 0x44292933)
                 if (!button.icon.isEmpty) graphics.item(button.icon, left + 12, y + 5)
-                graphics.text(font, Component.literal(button.name.take(60)), left + 36, y + 7, -1, true)
+                graphics.text(font, Component.literal(displayName(button).take(60)), left + 36, y + 7, -1, true)
                 if (button.favorite) graphics.text(font, "★", right - 24, y + 7, 0xFFFFCC66.toInt(), true)
             }
             y += rowHeight
