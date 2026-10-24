@@ -18,7 +18,7 @@ class ActionPickerUI : Screen(Component.translatable("menu.action_picker.title")
     private var menuX = 0
     private var menuY = 0
     private var menuWidth = 180
-    private var menuHeight = 150
+    private var menuHeight = 175
 
     override fun init() {
         menuX = (width - menuWidth) / 2
@@ -38,16 +38,26 @@ class ActionPickerUI : Screen(Component.translatable("menu.action_picker.title")
         }.pos(menuX + 10, startY + 25).size(160, 20).build()
         addRenderableWidget(keybindBtn)
 
+        val malilibBtn = Button.builder(Component.literal("MaLiLib Hotkey")) {
+            val picker = MaLiLibPickerUI()
+            picker.previousScreen = previousScreen
+            picker.onSelectedKeybind = { id ->
+                onSelectedAction.accept(KeybindActionData(id))
+            }
+            minecraft?.gui?.setScreen(picker)
+        }.pos(menuX + 10, startY + 50).size(160, 20).build()
+        addRenderableWidget(malilibBtn)
+
         val sleepBtn = Button.builder(Component.translatable("menu.action_picker.sleep")) {
             onSelectedAction.accept(SleepActionData(10))
             onClose()
-        }.pos(menuX + 10, startY + 50).size(160, 20).build()
+        }.pos(menuX + 10, startY + 75).size(160, 20).build()
         addRenderableWidget(sleepBtn)
 
         val macroBtn = Button.builder(Component.translatable("menu.action_picker.macro")) {
             onSelectedAction.accept(MacroActionData())
             onClose()
-        }.pos(menuX + 10, startY + 75).size(160, 20).build()
+        }.pos(menuX + 10, startY + 100).size(160, 20).build()
         addRenderableWidget(macroBtn)
     }
 
