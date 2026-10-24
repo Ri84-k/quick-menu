@@ -117,17 +117,17 @@ class MainUI : Screen(Component.translatable("menu.main.title")) {
             }
         }
 
+        // Always-visible primary shortcuts sit directly above the search and edit controls.
+        addRenderableWidget(Button.builder(Component.literal("+ Action")) {
+            gotoActionEditor(null)
+        }.pos(menuX, menuY - 24).size(menuWidth / 2 - 2, 20).build())
+
+        addRenderableWidget(Button.builder(Component.literal("Settings")) {
+            minecraft?.gui?.setScreen(ModMenuIntegration().getModConfigScreenFactory().create(this))
+        }.pos(menuX + menuWidth / 2 + 2, menuY - 24).size(menuWidth / 2 - 2, 20).build())
+
         if (editMode) {
-            val editorY = menuY + menuHeight + 8
-            val importExportY = editorY + 22
-            addRenderableWidget(Button.builder(Component.literal("+ Action")) {
-                gotoActionEditor(null)
-            }.pos(menuX, editorY).size(menuWidth / 2 - 2, 20).build())
-
-            addRenderableWidget(Button.builder(Component.literal("Settings")) {
-                minecraft?.gui?.setScreen(ModMenuIntegration().getModConfigScreenFactory().create(this))
-            }.pos(menuX + menuWidth / 2 + 2, editorY).size(menuWidth / 2 - 2, 20).build())
-
+            val importExportY = menuY + menuHeight + 8
             addRenderableWidget(Button.builder(Component.translatable("menu.main.button.export")) {
                 handleExport()
             }.pos(menuX, importExportY).size(menuWidth / 2 - 2, 20).build())
