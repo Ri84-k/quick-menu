@@ -38,7 +38,7 @@ class ModConfig {
     var radialCloseOnAction: Boolean = true
     var radialGroupByMod: Boolean = true
     // Visibility is independent of layout; true retains the old dynamic filtering.
-    var radialOnlySelected: Boolean = true
+    var radialOnlySelected: Boolean = false
     var radialModSubmenus: Boolean = true
     var radialFavoritesPage: Boolean = true
     var radialModernLook: Boolean = true
