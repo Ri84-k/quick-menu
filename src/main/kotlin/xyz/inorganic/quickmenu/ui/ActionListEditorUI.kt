@@ -14,6 +14,8 @@ import xyz.inorganic.quickmenu.data.command_actions.SleepActionData
 import xyz.inorganic.quickmenu.macros.MacroParser
 import xyz.inorganic.quickmenu.ui.popups.ActionPickerUI
 import xyz.inorganic.quickmenu.ui.popups.KeybindPickerUI
+import xyz.inorganic.quickmenu.ui.popups.MaLiLibPickerUI
+import xyz.inorganic.quickmenu.other.MaLiLibHotkeys
 import kotlin.math.ceil
 
 class ActionListEditorUI(private val actionButtonData: ActionButtonData) : Screen(Component.literal("Edit Actions")) {
@@ -64,22 +66,38 @@ class ActionListEditorUI(private val actionButtonData: ActionButtonData) : Scree
                     }
                     addRenderableWidget(cmdBox)
                 } else if (action is KeybindActionData) {
-                    val kbBtn = Button.builder(Component.literal("Key: ${Component.translatable(action.translationKey).string}")) {
-                        val picker = KeybindPickerUI()
-                        picker.previousScreen = this
-                        picker.onSelectedKeybind = { mapping ->
-                            actionButtonData.actions[index] = KeybindActionData(mapping.name, action.mode)
-                            init()
+                    val isMaLiLib = MaLiLibHotkeys.isMaLiLib(action.translationKey)
+                    val label = if (isMaLiLib) MaLiLibHotkeys.getDisplayName(action.translationKey)
+                        else Component.translatable(action.translationKey).string
+                    val kbBtn = Button.builder(Component.literal("Key: $label")) {
+                        if (isMaLiLib) {
+                            val picker = MaLiLibPickerUI()
+                            picker.previousScreen = this
+                            picker.onSelectedKeybind = { id ->
+                                actionButtonData.actions[index] = KeybindActionData(id)
+                                init()
+                            }
+                            minecraft?.gui?.setScreen(picker)
+                        } else {
+                            val picker = KeybindPickerUI()
+                            picker.previousScreen = this
+                            picker.onSelectedKeybind = { mapping ->
+                                actionButtonData.actions[index] = KeybindActionData(mapping.name, action.mode)
+                                init()
+                            }
+                            minecraft?.gui?.setScreen(picker)
                         }
-                        minecraft?.gui?.setScreen(picker)
-                    }.pos(menuX + 10, rowY).size(130, 20).build()
+                    }.pos(menuX + 10, rowY).size(if (isMaLiLib) 190 else 130, 20).build()
                     addRenderableWidget(kbBtn)
 
-                    val modeBtn = Button.builder(Component.literal(action.mode.displayName)) {
-                        actionButtonData.actions[index] = KeybindActionData(action.translationKey, action.mode.next())
-                        init()
-                    }.pos(menuX + 145, rowY).size(55, 20).build()
-                    addRenderableWidget(modeBtn)
+                    // MaLiLib callbacks are actions rather than physical key holds.
+                    if (!isMaLiLib) {
+                        val modeBtn = Button.builder(Component.literal(action.mode.displayName)) {
+                            actionButtonData.actions[index] = KeybindActionData(action.translationKey, action.mode.next())
+                            init()
+                        }.pos(menuX + 145, rowY).size(55, 20).build()
+                        addRenderableWidget(modeBtn)
+                    }
                 } else if (action is SleepActionData) {
                     val sleepBox = EditBox(font, menuX + 10, rowY, 190, 20, Component.empty())
                     sleepBox.value = SleepActionData.formatSeconds(action.ticks)
