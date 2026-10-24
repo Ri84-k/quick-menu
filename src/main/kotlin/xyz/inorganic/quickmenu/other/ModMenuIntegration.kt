@@ -4,6 +4,7 @@ import com.terraformersmc.modmenu.api.ConfigScreenFactory
 import com.terraformersmc.modmenu.api.ModMenuApi
 import dev.isxander.yacl3.api.ConfigCategory
 import dev.isxander.yacl3.api.Option
+import dev.isxander.yacl3.api.OptionDescription
 import dev.isxander.yacl3.api.YetAnotherConfigLib
 import dev.isxander.yacl3.api.controller.BooleanControllerBuilder
 import dev.isxander.yacl3.api.controller.EnumControllerBuilder
@@ -126,6 +127,12 @@ class ModMenuIntegration : ModMenuApi {
                             .step(5)
                     }
                     .binding(15, { config.radialDeadZoneRadius }, { config.radialDeadZoneRadius = it })
+                    .build())
+                .option(Option.createBuilder<Boolean>()
+                    .name(Component.literal("Group radial pages by mod"))
+                    .description(OptionDescription.of(Component.literal("Keep Litematica, Tweakeroo and MiniHUD buttons on separate wheel pages. Scroll to change pages.")))
+                    .controller { BooleanControllerBuilder.create(it) }
+                    .binding(true, { config.radialGroupByMod }, { config.radialGroupByMod = it })
                     .build())
                 .option(Option.createBuilder<Boolean>()
                     .name(Component.translatable("text.config.quickmenu.option.radialCloseOnAction"))
