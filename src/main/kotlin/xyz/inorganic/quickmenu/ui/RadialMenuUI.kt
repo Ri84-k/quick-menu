@@ -180,8 +180,9 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
 
         val sliceAngle = 2 * PI / slots
         val mouseAngle = atan2(dy, dx)
-        val item0Center = -PI / 2 - sliceAngle / 2
-        val shifted = (mouseAngle - item0Center + sliceAngle / 2 + 2 * PI) % (2 * PI)
+        // Match the icon centers exactly. The first action sits at 12 o'clock.
+        val startAngle = -PI / 2
+        val shifted = (mouseAngle - startAngle + sliceAngle / 2 + 2 * PI) % (2 * PI)
         val slotIndex = (shifted / sliceAngle).toInt()
 
         hoveredSlotIndex = slotIndex
@@ -220,7 +221,8 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
         val radius = getRadius()
         val deadZone = getDeadZoneRadius()
         val sliceAngle = (2 * PI / slots).toFloat()
-        val startAngle = (-PI / 2 - sliceAngle / 2).toFloat()
+        // Keep the first action at the top regardless of the number of items.
+        val startAngle = (-PI / 2).toFloat()
 
         for (slot in 0 until slots) {
             val angle = (startAngle + slot * sliceAngle).toDouble()
@@ -258,11 +260,15 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
                     if (toggle) 0xFF66DD77.toInt() else 0xFFAAAAAA.toInt(), true)
             }
 
-            if (hasItem) {
-                val labelLines = wrappedLabel(item!!.name, 90, 3)
+            // Dense wheels have no room for labels on every button.
+            // Show compact captions for small wheels; the full hovered label
+            // appears below the wheel in all other cases.
+            if (hasItem && slots <= 6) {
+                val captionWidth = if (slots <= 3) 92 else 60
+                val labelLines = wrappedLabel(item!!.name, captionWidth, 2)
                 for ((lineIndex, line) in labelLines.withIndex()) {
                     graphics.text(font, line, itemX - font.width(line) / 2,
-                        itemY + 16 + lineIndex * 9, 0xFFCCCCCC.toInt(), true)
+                        itemY + 16 + lineIndex * 10, 0xFFCCCCCC.toInt(), true)
                 }
             }
         }
@@ -280,8 +286,10 @@ class RadialMenuUI : Screen(Component.translatable("menu.radial.title")) {
 
         // The full selected action label is always visible, even when long.
         val selected = hoveredAction
-        if (selected != null) {
-            val lines = wrappedLabel(selected.name, (width - 40).coerceAtLeast(100), 5)
+        // A short label on a one-item wheel is already fully visible beside
+        // its icon; don't repeat it again in the footer.
+        if (selected != null && (slots > 1 || font.width(selected.name) > 92)) {
+            val lines = wrappedLabel(selected.name, minOf((width - 40).coerceAtLeast(100), 440), 4)
             val state = states[toggleId(selected)]
             for ((lineIndex, line) in lines.withIndex()) {
                 graphics.text(font, line, centerX - font.width(line) / 2,
