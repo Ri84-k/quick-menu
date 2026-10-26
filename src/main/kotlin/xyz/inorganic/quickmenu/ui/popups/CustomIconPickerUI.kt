@@ -5,7 +5,7 @@ import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
-import net.minecraft.Util
+import net.minecraft.util.Util
 import org.lwjgl.glfw.GLFW
 import xyz.inorganic.quickmenu.other.CustomIconTextures
 
