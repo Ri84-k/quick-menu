@@ -5,6 +5,7 @@ import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
+import net.minecraft.Util
 import org.lwjgl.glfw.GLFW
 import xyz.inorganic.quickmenu.other.CustomIconTextures
 
@@ -31,21 +32,23 @@ class CustomIconPickerUI : Screen(Component.literal("Choose Custom PNG Icon")) {
             rebuildWidgets()
         }.pos(left + 10, bottom - 27).size(75, 20).build())
         addRenderableWidget(Button.builder(Component.literal("Open icons folder")) {
-            val folder = CustomIconTextures.folder().toAbsolutePath().normalize()
             try {
-                // AWT Desktop is frequently disabled in Minecraft's JVM.
-                // Launch the operating system's file manager directly instead.
-                val os = System.getProperty("os.name", "").lowercase()
-                val command = when {
-                    os.contains("win") -> listOf("explorer.exe", folder.toString())
-                    os.contains("mac") -> listOf("open", folder.toString())
-                    else -> listOf("xdg-open", folder.toString())
-                }
-                ProcessBuilder(command).start()
-                folderStatus = "Opening icons folder..."
-            } catch (_: Exception) {
+                val folder = CustomIconTextures.folder().toAbsolutePath().normalize()
+                // Always provide a manual fallback: copy the exact instance-specific
+                // path (important for Prism/Modrinth/multiple Minecraft profiles).
                 minecraft?.keyboardHandler?.setClipboard(folder.toString())
-                folderStatus = "Can't open folder; path copied to clipboard"
+
+                // Use Minecraft's own cross-platform launcher, the same approach
+                // used for opening other game folders, instead of spawning a raw
+                // explorer.exe process which can return without opening Explorer.
+                try {
+                    Util.getPlatform().openFile(folder.toFile())
+                    folderStatus = "Folder requested; path copied (Ctrl+V in Explorer)"
+                } catch (_: Exception) {
+                    folderStatus = "Open failed; path copied (Ctrl+V in Explorer)"
+                }
+            } catch (_: Exception) {
+                folderStatus = "Couldn't create icons folder (check config directory)"
             }
         }.pos(left + 90, bottom - 27).size(130, 20).build())
         addRenderableWidget(Button.builder(Component.literal("Use Item Icon")) {
